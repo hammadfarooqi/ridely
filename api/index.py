@@ -42,5 +42,17 @@ async def telegram_webhook(
     if not secret or not hmac.compare_digest(x_telegram_bot_api_secret_token or "", secret):
         raise HTTPException(status_code=401, detail="bad secret")
     update = await request.json()
-    status = await handle_update(update, get_store(), TelegramClient(), model_from_env())
+    try:
+        model = model_from_env()
+    except RuntimeError:
+        # Misconfigured: still return 200, or Telegram retries the same update forever.
+        model = _NotConfiguredModel()
+    status = await handle_update(update, get_store(), TelegramClient(), model)
     return {"ok": True, "status": status}
+
+
+class _NotConfiguredModel:
+    """Placeholder that makes the agent turn fail, so the user gets the fallback message."""
+
+    def __getattr__(self, name):
+        raise RuntimeError("LLM_BASE_URL / LLM_API_KEY / LLM_MODEL are not set")
