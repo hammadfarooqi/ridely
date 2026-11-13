@@ -27,7 +27,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(ROOT / ".env")
 
 from ridely.agent import TZ, Deps, run_turn  # noqa: E402
-from ridely.model import model_from_env  # noqa: E402
+from ridely.model import model_from_env, split_spec  # noqa: E402
 
 PHONE_RE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
 
@@ -66,14 +66,26 @@ def grade(sc: dict, replies: list[str]) -> list[str]:
     return fails
 
 
+# Sail ASAP prices, $ per 1M tokens (input, output), from docs.sailresearch.com/pricing (2026-11-13).
+PRICES = {
+    "moonshotai/Kimi-K3": (1.50, 10.00), "moonshotai/Kimi-K3.1-Pro": (1.50, 10.00),
+    "zai-org/GLM-5.3": (0.98, 3.08), "zai-org/GLM-5.3-Flash": (0.11, 0.35),
+    "deepseek-ai/DeepSeek-V4-Flash-0731": (0.09, 0.18), "deepseek-ai/DeepSeek-V4.1-Flash-1017": (0.09, 0.30),
+    "deepseek-ai/DeepSeek-V4-Pro-0813": (0.92, 2.77), "google/gemma-4-31B-it": (0.40, 0.60),
+    "google/gemma-4-12B-it": (0.30, 2.00), "nvidia/Gemma-4-31B-IT-NVFP4": (0.14, 0.40),
+}
+
+
 async def run_scenario(sc: dict, model, now: datetime, mode: str = "standard") -> dict:
     history = None
-    replies, req, tin, tout = [], 0, 0, 0
+    replies, req, tin, tout, turn_secs = [], 0, 0, 0, []
     t0 = time.monotonic()
     error = None
     try:
         for turn in sc["turns"]:
+            t1 = time.monotonic()
             r = await run_turn(turn, history, model, Deps(now=now), mode=mode)
+            turn_secs.append(round(time.monotonic() - t1, 1))
             history = r.history_json
             replies.append(r.reply)
             req += r.requests
@@ -84,7 +96,7 @@ async def run_scenario(sc: dict, model, now: datetime, mode: str = "standard") -
     fails = [f"error: {error}"] if error else grade(sc, replies)
     return {"id": sc["id"], "pass": not fails, "fails": fails, "turns": sc["turns"], "replies": replies,
             "requests": req, "input_tokens": tin, "output_tokens": tout,
-            "seconds": round(time.monotonic() - t0, 1)}
+            "seconds": round(time.monotonic() - t0, 1), "turn_seconds": turn_secs}
 
 
 async def main() -> None:
@@ -92,8 +104,8 @@ async def main() -> None:
     ap.add_argument("--models", nargs="+", required=True)
     ap.add_argument("--modes", nargs="+", default=["standard"], choices=["minimal", "standard", "guardrails"])
     ap.add_argument("--only", nargs="*", help="scenario ids to run")
-    ap.add_argument("--price-in", type=float, required=True, help="$ per 1M input tokens")
-    ap.add_argument("--price-out", type=float, required=True, help="$ per 1M output tokens")
+    ap.add_argument("--price-in", type=float, help="$ per 1M input tokens (default: PRICES table)")
+    ap.add_argument("--price-out", type=float, help="$ per 1M output tokens (default: PRICES table)")
     ap.add_argument("--budget", type=float, default=2.0, help="stop at this estimated $ total")
     args = ap.parse_args()
 
@@ -107,6 +119,12 @@ async def main() -> None:
     summary = []
     for name in args.models:
         model = model_from_env(name)
+        base = split_spec(name)[0]
+        p_in, p_out = PRICES.get(base, (None, None))
+        p_in = args.price_in if args.price_in is not None else p_in
+        p_out = args.price_out if args.price_out is not None else p_out
+        if p_in is None or p_out is None:
+            raise SystemExit(f"No price for {base}: pass --price-in and --price-out")
         for mode in args.modes:
             label = f"{name} [{mode}]"
             results = []
@@ -115,7 +133,7 @@ async def main() -> None:
                     print(f"budget reached (${spent:.3f}); stopping")
                     break
                 res = await run_scenario(sc, model, now, mode)
-                cost = res["input_tokens"] / 1e6 * args.price_in + res["output_tokens"] / 1e6 * args.price_out
+                cost = res["input_tokens"] / 1e6 * p_in + res["output_tokens"] / 1e6 * p_out
                 spent += cost
                 res["cost"] = round(cost, 5)
                 results.append(res)
@@ -133,11 +151,14 @@ async def main() -> None:
                     lines += ["", f"> **User:** {u}", "", f"**Ridely:** {a}"]
                 lines.append("")
             (out_dir / f"{stamp}-{safe}.md").write_text("\n".join(lines))
-            summary.append((label, n_pass, len(results), sum(r["cost"] for r in results)))
+            secs = sorted(t for r in results for t in r.get("turn_seconds", []))
+            med = secs[len(secs) // 2] if secs else 0
+            mx = secs[-1] if secs else 0
+            summary.append((label, n_pass, len(results), sum(r["cost"] for r in results), med, mx))
             print(f"== {label}: {n_pass}/{len(results)} passed. Total spent so far ${spent:.3f}")
     print("\nSummary:")
-    for label, n, total, cost in summary:
-        print(f"  {label:<50} {n}/{total}  ${cost:.4f}")
+    for label, n, total, cost, med, mx in summary:
+        print(f"  {label:<50} {n}/{total}  ${cost:.4f}  reply median {med}s, max {mx}s")
 
 if __name__ == "__main__":
     asyncio.run(main())
