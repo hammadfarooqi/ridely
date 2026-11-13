@@ -1,0 +1,122 @@
+# Ridely — Build Plan
+
+Last updated: 2026-11-13
+
+Ridely is a text agent. Older adults and residents with disabilities in Princeton text Ridely about a trip. Ridely tells them which free or low-cost ride program fits, what it costs, who to call, what to say, and the last day to book. Ridely is read-only. It does not book rides. It does not ask for names or IDs.
+
+The prototype runs on Telegram. A later pilot can move to SMS (for example, Twilio) with the same agent code.
+
+---
+
+## 0. Decisions (2026-11-13)
+
+| Topic | Decision |
+|---|---|
+| Language | Python (FastAPI app in `api/index.py` on Vercel's Python runtime) |
+| LLM provider | Use our credits: Prime Intellect inference and Sail. Both give an OpenAI-compatible chat API, so the first adapter uses that format (`openai` Python client with a custom `base_url`). We can add an Anthropic adapter later. **Open:** choose the model (see §4c). |
+| Rules data | Team edits `data/programs.md` in git. A script converts it to `data/programs.yaml`. |
+| Conversation store | Postgres on Neon. The prototype keeps all data (no automatic delete). We add a delete rule before any pilot with real residents. |
+
+## 1. Architecture
+
+```
+Resident ──text──▶ Telegram ──webhook──▶ Vercel function
+                                             │
+                               load history (Neon Postgres, by chat_id)
+                                             │
+                                       Agent harness  ◀──▶  LLM provider (adapter)
+                                             │
+                                     read-only tools
+                                             │
+                            reply via Telegram sendMessage
+```
+
+Main parts:
+
+| Part | What it does |
+|---|---|
+| `api/telegram` webhook | Checks the secret header. Ignores repeat `update_id`s. Sends a "typing" action. Runs the agent. Sends the reply. |
+| Agent harness | Our own loop: call model → run tool calls → repeat until the model gives a final text. Max ~6 tool rounds. |
+| Provider adapter | One small interface (`chat(messages, tools) → {text, toolCalls}`). One adapter for each provider. The harness does not know which provider it uses. |
+| Conversation store | Neon table `messages(chat_id, role, content, created_at)` + table `seen_updates(update_id)`. Load the last ~20 messages. No names or IDs. |
+| Programs data | `data/programs.yaml` — made from the master rules document. Each entry has a `last_verified` date. |
+
+## 2. System prompt (stable, so we can cache it)
+
+1. Ridely's role and rules: plain language, short messages, English or Spanish (reply in the user's language), no booking, no personal data, always say "rules can change — confirm when you call", give 911 for emergencies.
+2. A short summary of each program (2–3 lines each).
+3. The conversation flow: find out (a) the age or disability, (b) the start town, (c) the destination, (d) the trip date and time, (e) whether the user has Medicaid. Ask only for the facts that are still missing. Ask one or two questions in each message.
+
+Put today's date and day of week in a message **after** the stable prompt. If we put it inside the stable prompt, the prompt cache breaks every day.
+
+## 3. Tools (all read-only)
+
+| Tool | Input | Output | How |
+|---|---|---|---|
+| `get_program_details` | `program_id` | Full fact sheet + `last_verified` date | Read from `programs.yaml` |
+| `check_eligibility` | age, disability, Medicaid, home town | Programs that can fit, and why | Deterministic rules in code. The model does not decide eligibility alone. |
+| `geocode_address` | address or town | Lat/lon, town (county subdivision), county | U.S. Census Geocoder, `geographies/onelineaddress`. No API key needed. |
+| `check_service_area` | `program_id`, start, end | in / out / unsure, with reason | Compare town and county against the program's area list |
+| `lookup_destination` | name, e.g. "RWJ Hamilton" | Address + town | Our own list of ~40 common places (hospitals, clinics, ShopRite, senior centers). Fuzzy match. If no match, the model asks for the street address. |
+| `booking_deadline` | `program_id`, trip date | Last day and time to call | Business-day math with a holiday list |
+
+Note: the Census geocoder works on street addresses only. It cannot find "RWJ Hamilton". That is why we need `lookup_destination`.
+
+## 4. The three non-code workstreams
+
+### 4a. Master rules document (team)
+
+- Starting draft: [data/programs.md](data/programs.md). It covers Crosstown, RideProvide, Mercer TRADE, Access Link, Medicaid NEMT, and Princeton Muni Transit. Many values are marked **VERIFY**, because the sources do not agree.
+- Team task: call each program, or read its current website. Fill in each VERIFY field. Write the date and the source for each field.
+- Then convert the document to `data/programs.yaml` (one schema for all programs: `id, name, operator, eligibility, service_area, cost, booking {phone, hours, min_notice, max_advance}, trip_purposes, how_to_register, what_to_say, last_verified, sources`).
+- Each team member owns 2 programs.
+
+### 4b. Telegram bot
+
+1. Open Telegram. Message `@BotFather`. Send `/newbot`. Name it "Ridely". Save the token.
+2. Use `/setdescription` and `/setcommands` (`/start`, `/reset`, `/espanol`).
+3. Deploy the webhook to Vercel. Then call `setWebhook` with the URL and a `secret_token`.
+4. In the handler, check the `X-Telegram-Bot-Api-Secret-Token` header. Reject requests with a wrong value.
+5. Telegram sends an update again if it does not get a 200 response. Store each `update_id` you handle, and skip repeats.
+
+### 4c. Inference provider
+
+1. Get API keys from Prime Intellect and Sail. Find each one's OpenAI-compatible `base_url`.
+2. List the models each provider serves. Keep only models that support **tool calling** (function calling) on that endpoint. Not all hosted open models do.
+3. Pick 2–3 candidate models. Run the M5 test set on each. Choose the one with the best accuracy on eligibility and the fewest bad tool calls. Write the result in this file.
+4. Put settings in Vercel environment variables: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `DATABASE_URL`. To change the provider, change only these values.
+5. Set a spend alert if the provider has one.
+
+Estimated use: a conversation is about 5 turns × ~4k input tokens, so ~20k tokens. The credits should cover the whole project.
+
+## 5. Milestones
+
+| # | Milestone | Done when |
+|---|---|---|
+| M0 | Setup | Repo, Vercel project, bot token, API key, Neon database all work |
+| M1 | Echo bot | Telegram → Vercel → reply works |
+| M2 | Agent loop, no tools | Ridely chats from the system prompt only |
+| M3 | Tools | All 6 tools work and have unit tests |
+| M4 | Verified data | Team finishes the VERIFY fields; `programs.yaml` is complete |
+| M5 | Test set | 20–30 scripted scenarios (English and Spanish, edge cases) with the expected program. We run them before each change. |
+| M6 | Demo | Live demo + a short report on accuracy over the test set |
+| M7 (later) | Pilot | Show to Center for Modern Aging and Human Services staff; plan the SMS number |
+
+## 6. Safety and privacy rules
+
+- Never book. Never ask for names, dates of birth, Medicaid ID numbers, or full home addresses unless the user wants a service-area check. A cross street or town is enough.
+- Always show the date the program data was last checked.
+- If Ridely is not sure, it says so and gives a person to call (for example, the CMAP number or NJ 211).
+- Emergencies: tell the user to call 911.
+- Log only what we need to debug. The prototype does not delete conversations. Before a pilot (M7), add a retention rule (for example, delete after 7 days).
+
+## 7. Risks
+
+| Risk | What we do |
+|---|---|
+| Program rules change or sources disagree | `last_verified` dates; the team calls each program; Ridely tells users to confirm |
+| The model says a person is eligible when they are not | Eligibility is in code (`check_eligibility`), not only in the prompt |
+| Open model makes bad tool calls | Validate each tool input against its JSON schema. Send errors back to the model. Pick the model with the test set (M5). |
+| Credits run out | The adapter uses the OpenAI-compatible format, so we can move to another provider by changing env vars. |
+| Telegram is not what seniors use | Prototype only. The harness does not depend on the channel, so SMS can replace it. |
+| Vercel function time limit | Set `maxDuration`. Limit tool rounds. Send "typing" while the agent works. |
