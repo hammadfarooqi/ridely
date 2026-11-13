@@ -8,7 +8,7 @@ import time
 
 from pydantic_ai.models import Model
 
-from ridely.agent import run_turn
+from ridely.agent import current_mode, run_turn
 from ridely.store import Store
 
 log = logging.getLogger("ridely")
@@ -67,6 +67,16 @@ async def handle_update(update: dict, store: Store, sender: Sender, model: Model
     if len(text) > 2000:
         text = text[:2000]
 
+    id_note = None
+    if current_mode() == "guardrails":
+        from ridely.guardrails import EMERGENCY_REPLY, ID_NOTE, is_emergency, scrub_ids
+
+        if is_emergency(text):
+            await sender.send_message(chat_id, EMERGENCY_REPLY)
+            return "emergency"
+        text, removed = scrub_ids(text)
+        id_note = ID_NOTE if removed else None
+
     await sender.typing(chat_id)
     t0 = time.monotonic()
     try:
@@ -80,7 +90,10 @@ async def handle_update(update: dict, store: Store, sender: Sender, model: Model
         return "error"
 
     await store.save_history(chat_id, result.history_json)
-    await sender.send_message(chat_id, result.reply or FALLBACK)
+    reply = result.reply or FALLBACK
+    if id_note:
+        reply = f"{id_note}\n\n{reply}"
+    await sender.send_message(chat_id, reply)
     await store.log_turn(chat_id, model=os.environ.get("LLM_MODEL"), requests=result.requests,
                          input_tokens=result.input_tokens, output_tokens=result.output_tokens,
                          latency_ms=int((time.monotonic() - t0) * 1000))

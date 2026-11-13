@@ -39,15 +39,6 @@ class Deps:
         return self.now.date()
 
 
-agent = Agent(
-    None,  # model is passed per run (real model, or a test model)
-    deps_type=Deps,
-    instructions=static_instructions(),
-    retries=2,
-)
-
-
-@agent.instructions
 def _today(ctx: RunContext[Deps]) -> str:
     # Kept apart from the static text so the static part can be cached.
     return f"Today is {ctx.deps.now.strftime('%A, %B %d, %Y')}. Time now: {ctx.deps.now.strftime('%I:%M %p')} (New Jersey time)."
@@ -63,7 +54,6 @@ def _place(ctx: RunContext[Deps], text: str) -> tuple[Place, str | None]:
     return resolve_place(text, client=ctx.deps.http), None
 
 
-@agent.tool(retries=2)
 def get_program_details(ctx: RunContext[Deps], program_id: ProgramId) -> dict:
     """Full facts for one program: who can use it, area, cost, phone, hours, notice, how to register, what to say.
 
@@ -75,7 +65,6 @@ def get_program_details(ctx: RunContext[Deps], program_id: ProgramId) -> dict:
     return p
 
 
-@agent.tool(retries=2)
 def check_eligibility(
     ctx: RunContext[Deps],
     home: str | None = None,
@@ -108,7 +97,6 @@ def check_eligibility(
     return out
 
 
-@agent.tool(retries=2)
 def lookup_destination(ctx: RunContext[Deps], name: str) -> dict:
     """Find the address and town of a place by name, e.g. "RWJ Hamilton" or "Princeton hospital".
 
@@ -118,7 +106,6 @@ def lookup_destination(ctx: RunContext[Deps], name: str) -> dict:
     return _lookup(name)
 
 
-@agent.tool(retries=2)
 def geocode_address(ctx: RunContext[Deps], address: str) -> dict:
     """Find the town, county and state for a street address or a town name.
 
@@ -128,7 +115,6 @@ def geocode_address(ctx: RunContext[Deps], address: str) -> dict:
     return resolve_place(address, client=ctx.deps.http).to_dict()
 
 
-@agent.tool(retries=2)
 def check_service_area(ctx: RunContext[Deps], program_id: ProgramId, start: str, end: str) -> dict:
     """Check if a trip's start and end are inside a program's service area.
 
@@ -142,7 +128,6 @@ def check_service_area(ctx: RunContext[Deps], program_id: ProgramId, start: str,
     return _service_area(program_id, s, e, end_destination_id=dest_id)
 
 
-@agent.tool(retries=2)
 def booking_deadline(ctx: RunContext[Deps], program_id: ProgramId, trip_date: date) -> dict:
     """The last day to call to book a ride with a program, for a trip on trip_date.
 
@@ -153,6 +138,43 @@ def booking_deadline(ctx: RunContext[Deps], program_id: ProgramId, trip_date: da
     if (trip_date - ctx.deps.today).days > 366:
         raise ModelRetry("That date is more than a year away. Check the year.")
     return _deadline(program_id, trip_date, ctx.deps.today)
+
+
+# ---------- agents (modes) ----------
+#
+# RIDELY_MODE picks one:
+#   minimal    - no tools. All program facts are in the prompt; the model decides everything.
+#   standard   - 6 read-only tools; code decides eligibility, area and deadlines. (default)
+#   guardrails - standard + reply checks (phone numbers only from our data, no program the
+#                eligibility tool ruled out, short replies) + emergency/ID-number filters in the bot.
+
+TOOLS = [get_program_details, check_eligibility, lookup_destination, geocode_address,
+         check_service_area, booking_deadline]
+MODES = ("minimal", "standard", "guardrails")
+
+
+def _make_agent(mode: str) -> Agent[Deps, str]:
+    if mode == "minimal":
+        from ridely.prompt import minimal_instructions
+
+        a = Agent(None, deps_type=Deps, instructions=[minimal_instructions(), _today], retries=2)
+    else:
+        a = Agent(None, deps_type=Deps, instructions=[static_instructions(), _today], tools=TOOLS, retries=2)
+    if mode == "guardrails":
+        from ridely.guardrails import check_reply
+
+        a.output_validator(check_reply)
+    return a
+
+
+AGENTS = {m: _make_agent(m) for m in MODES}
+
+
+def current_mode() -> str:
+    import os
+
+    m = os.environ.get("RIDELY_MODE", "standard").strip().lower()
+    return m if m in MODES else "standard"
 
 
 # ---------- running one turn ----------
@@ -181,10 +203,11 @@ def load_history(history_json: bytes | str | None) -> list[ModelMessage]:
     return list(ModelMessagesTypeAdapter.validate_json(history_json))
 
 
-async def run_turn(user_text: str, history_json: bytes | str | None, model: Model, deps: Deps | None = None) -> TurnResult:
+async def run_turn(user_text: str, history_json: bytes | str | None, model: Model, deps: Deps | None = None,
+                   mode: str | None = None) -> TurnResult:
     deps = deps or Deps()
     history = trim_history(load_history(history_json))
-    result = await agent.run(
+    result = await AGENTS[mode or current_mode()].run(
         user_text,
         model=model,
         deps=deps,

@@ -1,7 +1,7 @@
 """Run the scenario tests (evals/scenarios.yaml) on one or more real models.
 
-    uv run python scripts/eval.py --models qwen/qwen3-30b-a3b-instruct-2507 \
-        --price-in 0.10 --price-out 0.40 --budget 2.00
+    uv run python scripts/eval.py --models <model-id> [<model-id> ...] \
+        --modes minimal standard guardrails --price-in 0.10 --price-out 0.40 --budget 2.00
 
 Prices are dollars per 1M tokens (look them up for your provider). The run stops when the
 estimated cost reaches --budget. Results go to evals/results/.
@@ -66,14 +66,14 @@ def grade(sc: dict, replies: list[str]) -> list[str]:
     return fails
 
 
-async def run_scenario(sc: dict, model, now: datetime) -> dict:
+async def run_scenario(sc: dict, model, now: datetime, mode: str = "standard") -> dict:
     history = None
     replies, req, tin, tout = [], 0, 0, 0
     t0 = time.monotonic()
     error = None
     try:
         for turn in sc["turns"]:
-            r = await run_turn(turn, history, model, Deps(now=now))
+            r = await run_turn(turn, history, model, Deps(now=now), mode=mode)
             history = r.history_json
             replies.append(r.reply)
             req += r.requests
@@ -90,6 +90,7 @@ async def run_scenario(sc: dict, model, now: datetime) -> dict:
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="+", required=True)
+    ap.add_argument("--modes", nargs="+", default=["standard"], choices=["minimal", "standard", "guardrails"])
     ap.add_argument("--only", nargs="*", help="scenario ids to run")
     ap.add_argument("--price-in", type=float, required=True, help="$ per 1M input tokens")
     ap.add_argument("--price-out", type=float, required=True, help="$ per 1M output tokens")
@@ -103,34 +104,40 @@ async def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     spent = 0.0
 
+    summary = []
     for name in args.models:
         model = model_from_env(name)
-        results = []
-        for sc in scenarios:
-            if spent >= args.budget:
-                print(f"budget reached (${spent:.3f}); stopping")
-                break
-            res = await run_scenario(sc, model, now)
-            cost = res["input_tokens"] / 1e6 * args.price_in + res["output_tokens"] / 1e6 * args.price_out
-            spent += cost
-            res["cost"] = round(cost, 5)
-            results.append(res)
-            print(f"[{name}] {sc['id']:<28} {'PASS' if res['pass'] else 'FAIL'}  ${cost:.4f}  {res['seconds']}s  {'; '.join(res['fails'])}")
-        n_pass = sum(r["pass"] for r in results)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M")
-        safe = re.sub(r"[^A-Za-z0-9._-]", "_", name)
-        (out_dir / f"{stamp}-{safe}.json").write_text(json.dumps(results, indent=1, ensure_ascii=False))
-        lines = [f"# Eval: {name}", "", f"Passed {n_pass}/{len(results)}. Est. cost ${sum(r['cost'] for r in results):.4f}.", ""]
-        for r in results:
-            lines.append(f"## {r['id']} — {'PASS' if r['pass'] else 'FAIL'}")
-            if r["fails"]:
-                lines.append(f"Failed: {'; '.join(r['fails'])}")
-            for u, a in zip(r["turns"], r["replies"]):
-                lines += ["", f"> **User:** {u}", "", f"**Ridely:** {a}"]
-            lines.append("")
-        (out_dir / f"{stamp}-{safe}.md").write_text("\n".join(lines))
-        print(f"== {name}: {n_pass}/{len(results)} passed. Total spent so far ${spent:.3f}")
-
+        for mode in args.modes:
+            label = f"{name} [{mode}]"
+            results = []
+            for sc in scenarios:
+                if spent >= args.budget:
+                    print(f"budget reached (${spent:.3f}); stopping")
+                    break
+                res = await run_scenario(sc, model, now, mode)
+                cost = res["input_tokens"] / 1e6 * args.price_in + res["output_tokens"] / 1e6 * args.price_out
+                spent += cost
+                res["cost"] = round(cost, 5)
+                results.append(res)
+                print(f"[{label}] {sc['id']:<28} {'PASS' if res['pass'] else 'FAIL'}  ${cost:.4f}  {res['seconds']}s  {'; '.join(res['fails'])}")
+            n_pass = sum(r["pass"] for r in results)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M")
+            safe = re.sub(r"[^A-Za-z0-9._-]", "_", f"{name}-{mode}")
+            (out_dir / f"{stamp}-{safe}.json").write_text(json.dumps(results, indent=1, ensure_ascii=False))
+            lines = [f"# Eval: {label}", "", f"Passed {n_pass}/{len(results)}. Est. cost ${sum(r['cost'] for r in results):.4f}.", ""]
+            for r in results:
+                lines.append(f"## {r['id']} — {'PASS' if r['pass'] else 'FAIL'}")
+                if r["fails"]:
+                    lines.append(f"Failed: {'; '.join(r['fails'])}")
+                for u, a in zip(r["turns"], r["replies"]):
+                    lines += ["", f"> **User:** {u}", "", f"**Ridely:** {a}"]
+                lines.append("")
+            (out_dir / f"{stamp}-{safe}.md").write_text("\n".join(lines))
+            summary.append((label, n_pass, len(results), sum(r["cost"] for r in results)))
+            print(f"== {label}: {n_pass}/{len(results)} passed. Total spent so far ${spent:.3f}")
+    print("\nSummary:")
+    for label, n, total, cost in summary:
+        print(f"  {label:<50} {n}/{total}  ${cost:.4f}")
 
 if __name__ == "__main__":
     asyncio.run(main())

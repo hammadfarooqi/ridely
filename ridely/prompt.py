@@ -46,3 +46,26 @@ Safety and privacy:
 
 def static_instructions() -> str:
     return RULES + "\nThe ride programs you know about (call get_program_details for full facts):\n" + program_summaries()
+
+
+MINIMAL_HOW = """\
+How to decide (minimal mode: you have no tools):
+- Use only the program facts below. Decide eligibility, service area and the last day to call yourself.
+- Work out dates carefully from today's date. Business days skip weekends and federal holidays.
+- Only give phone numbers that appear in the facts below, or 911 and 2-1-1.
+"""
+
+
+def minimal_instructions() -> str:
+    import yaml
+
+    from ridely.data import destinations, programs
+
+    head, rest = RULES.split("How to decide (use the tools, do not guess):")
+    _, tail = rest.split("What your answer must have when you recommend a program:")
+    rules = head + MINIMAL_HOW + "\nWhat your answer must have when you recommend a program:" + tail
+    facts = yaml.safe_dump([{k: v for k, v in p.items() if k not in ("sources",)} for p in programs().values()],
+                           sort_keys=False, allow_unicode=True)
+    places = "\n".join(f"- {d['name']}: {d['address']} ({d['town']}, {d['county']} County, {d['state']})"
+                       for d in destinations())
+    return f"{rules}\nFull program facts:\n{facts}\nCommon places:\n{places}\n"
