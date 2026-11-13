@@ -1,0 +1,298 @@
+# Common destinations for Ridely's lookup_destination tool.
+# geocoded: true -> the U.S. Census geocoder matched this address on 2026-11-13 and gave the town and county.
+# geocoded: false -> address from public listings; town and county entered by hand. VERIFY.
+- id: penn_medicine_princeton
+  name: Penn Medicine Princeton Medical Center
+  aliases:
+  - princeton medical center
+  - princeton hospital
+  - penn medicine princeton
+  - princeton health
+  - pmc
+  - university medical center of princeton
+  - plainsboro hospital
+  kind: hospital
+  address: 1 Plainsboro Rd, Plainsboro, NJ 08536
+  town: Plainsboro
+  county: Middlesex
+  state: NJ
+  lat: 40.338925
+  lon: -74.625928
+  geocoded: true
+- id: rwj_hamilton
+  name: RWJ University Hospital Hamilton
+  aliases:
+  - rwj hamilton
+  - robert wood johnson hamilton
+  - rwjuh hamilton
+  - hamilton hospital
+  kind: hospital
+  address: 1 Hamilton Health Pl, Hamilton, NJ 08690
+  town: Hamilton
+  county: Mercer
+  state: NJ
+  lat: 40.216267
+  lon: -74.675555
+  geocoded: true
+- id: capital_health_regional
+  name: Capital Health Regional Medical Center (Trenton)
+  aliases:
+  - capital health trenton
+  - capital health regional
+  - brunswick ave hospital
+  kind: hospital
+  address: 750 Brunswick Ave, Trenton, NJ 08638
+  town: Trenton
+  county: Mercer
+  state: NJ
+  lat: 40.235752
+  lon: -74.75283
+  geocoded: true
+- id: st_francis_trenton
+  name: St. Francis Medical Center (Trenton)
+  aliases:
+  - st francis
+  - saint francis
+  - st. francis trenton
+  kind: hospital
+  address: 601 Hamilton Ave, Trenton, NJ 08629
+  town: Trenton
+  county: Mercer
+  state: NJ
+  lat: 40.216998
+  lon: -74.742841
+  geocoded: true
+- id: princeton_fitness_wellness
+  name: Princeton Fitness & Wellness Center
+  aliases:
+  - princeton fitness and wellness
+  - princeton fitness
+  - fitness and wellness
+  - rehab princeton
+  - state road gym
+  kind: rehab
+  address: 1225 State Rd, Princeton, NJ 08540
+  town: Montgomery
+  county: Somerset
+  state: NJ
+  lat: 40.4014
+  lon: -74.650464
+  geocoded: true
+- id: cmap
+  name: Center for Modern Aging Princeton
+  aliases:
+  - center for modern aging
+  - cmap
+  - senior center
+  - princeton senior resource center
+  - senior resource center
+  - suzanne patterson
+  kind: senior_center
+  address: 45 Stockton St, Princeton, NJ 08540
+  town: Princeton
+  county: Mercer
+  state: NJ
+  lat: 40.346678
+  lon: -74.66709
+  geocoded: true
+- id: princeton_shopping_center
+  name: Princeton Shopping Center (McCaffrey's)
+  aliases:
+  - princeton shopping center
+  - mccaffreys
+  - mccaffrey's
+  - harrison street shopping
+  kind: shopping
+  address: 301 N Harrison St, Princeton, NJ 08540
+  town: Princeton
+  county: Mercer
+  state: NJ
+  lat: 40.362322
+  lon: -74.651626
+  geocoded: true
+- id: whole_foods_princeton
+  name: Whole Foods Market (Route 1)
+  aliases:
+  - whole foods
+  - whole foods princeton
+  kind: shopping
+  address: 3495 US Highway 1, Princeton, NJ 08540
+  town: West Windsor
+  county: Mercer
+  state: NJ
+  lat: 40.309202
+  lon: -74.665178
+  geocoded: true
+- id: princeton_public_library
+  name: Princeton Public Library
+  aliases:
+  - princeton library
+  - public library
+  - library
+  kind: community
+  address: 65 Witherspoon St, Princeton, NJ 08542
+  town: Princeton
+  county: Mercer
+  state: NJ
+  lat: 40.351267
+  lon: -74.660355
+  geocoded: true
+- id: princeton_municipal_building
+  name: Princeton Municipal Building
+  aliases:
+  - municipal building
+  - town hall
+  - princeton town hall
+  - witherspoon municipal
+  kind: community
+  address: 400 Witherspoon St, Princeton, NJ 08540
+  town: Princeton
+  county: Mercer
+  state: NJ
+  lat: 40.362006
+  lon: -74.664515
+  geocoded: true
+- id: princeton_junction_station
+  name: Princeton Junction train station
+  aliases:
+  - princeton junction
+  - train station
+  - nj transit station
+  - princeton junction station
+  kind: transit
+  address: 2 Wallace Rd, Princeton Junction, NJ 08550
+  town: West Windsor
+  county: Mercer
+  state: NJ
+  lat: 40.315353
+  lon: -74.623159
+  geocoded: true
+- id: trenton_transit_center
+  name: Trenton Transit Center
+  aliases:
+  - trenton train station
+  - trenton station
+  - trenton transit
+  kind: transit
+  address: 72 S Clinton Ave, Trenton, NJ 08609
+  town: Trenton
+  county: Mercer
+  state: NJ
+  lat: 40.219478
+  lon: -74.755042
+  geocoded: true
+- id: quaker_bridge_mall
+  name: Quaker Bridge Mall
+  aliases:
+  - quakerbridge mall
+  - quaker bridge
+  - mall
+  kind: shopping
+  address: 150 Quakerbridge Mall, Lawrenceville, NJ 08648
+  town: Lawrence
+  county: Mercer
+  state: NJ
+  lat: 40.29277
+  lon: -74.683808
+  geocoded: true
+- id: capital_health_hamilton
+  name: Capital Health - Hamilton (outpatient)
+  aliases:
+  - capital health hamilton
+  kind: clinic
+  address: 1445 Whitehorse Mercerville Rd, Hamilton, NJ 08619
+  town: Hamilton
+  county: Mercer
+  state: NJ
+  lat: 40.214636
+  lon: -74.690812
+  geocoded: true
+- id: rwj_fitness_hamilton
+  name: RWJ Fitness & Wellness Center Hamilton
+  aliases:
+  - rwj fitness
+  - rwj wellness hamilton
+  kind: rehab
+  address: 3100 Quakerbridge Rd, Hamilton, NJ 08619
+  town: Hamilton
+  county: Mercer
+  state: NJ
+  lat: 40.246958
+  lon: -74.686572
+  geocoded: true
+- id: hup_philadelphia
+  name: Hospital of the University of Pennsylvania (Philadelphia)
+  aliases:
+  - hup
+  - penn hospital philadelphia
+  - hospital of the university of pennsylvania
+  - penn presbyterian
+  kind: hospital
+  address: 3400 Spruce St, Philadelphia, PA 19104
+  town: Philadelphia
+  county: Philadelphia
+  state: PA
+  lat: 39.950398
+  lon: -75.192673
+  geocoded: true
+- id: elm_court
+  name: Elm Court (senior housing)
+  aliases:
+  - elm court
+  kind: housing
+  address: 290 Hartley Ave, Princeton, NJ 08540
+  town: Princeton
+  county: Mercer
+  state: NJ
+  lat: 40.347288
+  lon: -74.633232
+  geocoded: true
+- id: capital_health_hopewell
+  name: Capital Health Medical Center - Hopewell
+  aliases:
+  - capital health hopewell
+  - capital health pennington
+  - hopewell hospital
+  kind: hospital
+  address: 1 Capital Way, Pennington, NJ 08534
+  town: Hopewell Township
+  county: Mercer
+  state: NJ
+  geocoded: false
+- id: rwj_new_brunswick
+  name: RWJ University Hospital (New Brunswick)
+  aliases:
+  - rwj new brunswick
+  - robert wood johnson new brunswick
+  - rwj university hospital
+  kind: hospital
+  address: 1 Robert Wood Johnson Pl, New Brunswick, NJ 08901
+  town: New Brunswick
+  county: Middlesex
+  state: NJ
+  geocoded: false
+- id: mercer_social_services
+  name: Mercer County Board of Social Services
+  aliases:
+  - board of social services
+  - welfare office
+  - medicaid office mercer
+  - social services
+  kind: government
+  address: 200 Woolverton St, Trenton, NJ 08611
+  town: Trenton
+  county: Mercer
+  state: NJ
+  geocoded: false
+- id: lawrence_library
+  name: Mercer County Library - Lawrence Headquarters
+  aliases:
+  - lawrence library
+  - mercer county library
+  - lawrenceville library
+  kind: community
+  address: 2751 Brunswick Pike, Lawrenceville, NJ 08648
+  town: Lawrence
+  county: Mercer
+  state: NJ
+  geocoded: false
