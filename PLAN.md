@@ -18,6 +18,20 @@ The prototype runs on Telegram. A later pilot can move to SMS (for example, Twil
 | Rules data | Team edits `data/programs.md` in git. A script converts it to `data/programs.yaml`. |
 | Conversation store | Postgres on Neon. The prototype keeps all data (no automatic delete). We add a delete rule before any pilot with real residents. |
 
+## 0b. Status (night of 2026-11-13)
+
+| # | Milestone | Status |
+|---|---|---|
+| M0 | Setup | Repo done (private GitHub `hammadfarooqi/ridely`). **Open:** Telegram bot token, model key, Neon, Vercel — all need a human login. |
+| M1 | Echo bot | Skipped — went straight to the full webhook (`api/index.py`) + local polling (`scripts/poll.py`). |
+| M2 | Agent loop | Done (PydanticAI). Not yet run on a real model (no working key). |
+| M3 | Tools | Done: 6 tools, unit tests. |
+| M4 | Verified data | Partly: RideProvide and Access Link updated from official pages. Crosstown, TRADE, Medicaid, Muni still need phone checks. |
+| M5 | Test set | Done: 20 scenarios + `scripts/eval.py` with a budget cap. Not yet run on a real model. |
+| — | Modes | Added `RIDELY_MODE` = minimal / standard / guardrails, to compare by eval. |
+
+Overnight decisions (easy to change): see `MORNING_RECAP.md`.
+
 ## 1. Architecture
 
 ```
