@@ -12,7 +12,8 @@ The prototype runs on Telegram. A later pilot can move to SMS (for example, Twil
 
 | Topic | Decision |
 |---|---|
-| Language | Python (FastAPI app in `api/index.py` on Vercel's Python runtime) |
+| Language | Python 3.12 (FastAPI app in `api/index.py` on Vercel's Python runtime). Local tool: `uv`. |
+| Agent framework | **PydanticAI** (`pydantic-ai-slim[openai]`). Reasons: tool inputs checked by Pydantic with automatic retries, `TestModel` for free tests, JSON history adapter, `RunContext` for tool dependencies, `UsageLimits` to stop endless tool loops, small (46 MB, no AWS packages). We compared it with Strands and with writing our own loop. |
 | LLM provider | Use our credits: Prime Intellect inference and Sail. Both give an OpenAI-compatible chat API, so the first adapter uses that format (`openai` Python client with a custom `base_url`). We can add an Anthropic adapter later. **Open:** choose the model (see §4c). |
 | Rules data | Team edits `data/programs.md` in git. A script converts it to `data/programs.yaml`. |
 | Conversation store | Postgres on Neon. The prototype keeps all data (no automatic delete). We add a delete rule before any pilot with real residents. |
@@ -36,9 +37,22 @@ Main parts:
 | Part | What it does |
 |---|---|
 | `api/telegram` webhook | Checks the secret header. Ignores repeat `update_id`s. Sends a "typing" action. Runs the agent. Sends the reply. |
-| Agent harness | Our own loop: call model → run tool calls → repeat until the model gives a final text. Max ~6 tool rounds. |
-| Provider adapter | One small interface (`chat(messages, tools) → {text, toolCalls}`). One adapter for each provider. The harness does not know which provider it uses. |
-| Conversation store | Neon table `messages(chat_id, role, content, created_at)` + table `seen_updates(update_id)`. Load the last ~20 messages. No names or IDs. |
+| Agent | A PydanticAI `Agent` with 6 tools. `UsageLimits(request_limit=6)` stops long tool loops. `RunContext` gives tools the database connection and today's date. |
+| Model connection | `OpenAIChatModel` + `OpenAIProvider(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)`. To change provider, change the env vars only. |
+| Conversation store | Neon table `conversations(chat_id, messages JSONB, updated_at)` (history saved with `ModelMessagesTypeAdapter`) + table `seen_updates(update_id)`. No names or IDs. |
+
+File layout:
+
+```
+api/index.py         FastAPI webhook (Telegram → agent → reply)
+ridely/agent.py      PydanticAI Agent, system prompt, tool registration
+ridely/model.py      OpenAI-compatible model setup from env vars
+ridely/tools/*.py    6 tools (plain functions with typed inputs)
+ridely/store.py      Neon read/write (psycopg, plain SQL)
+ridely/telegram.py   sendMessage / sendChatAction with httpx
+data/programs.yaml
+tests/               unit tests + scenario tests with TestModel / FunctionModel
+```
 | Programs data | `data/programs.yaml` — made from the master rules document. Each entry has a `last_verified` date. |
 
 ## 2. System prompt (stable, so we can cache it)
@@ -98,7 +112,7 @@ Estimated use: a conversation is about 5 turns × ~4k input tokens, so ~20k toke
 | M2 | Agent loop, no tools | Ridely chats from the system prompt only |
 | M3 | Tools | All 6 tools work and have unit tests |
 | M4 | Verified data | Team finishes the VERIFY fields; `programs.yaml` is complete |
-| M5 | Test set | 20–30 scripted scenarios (English and Spanish, edge cases) with the expected program. We run them before each change. |
+| M5 | Test set | (a) Free tests with `TestModel`/`FunctionModel` for tool wiring and history. (b) 20–30 scripted scenarios (English and Spanish, edge cases) run on the real model, with the expected program. We run them before each change and use them to choose the model. |
 | M6 | Demo | Live demo + a short report on accuracy over the test set |
 | M7 (later) | Pilot | Show to Center for Modern Aging and Human Services staff; plan the SMS number |
 
@@ -116,7 +130,7 @@ Estimated use: a conversation is about 5 turns × ~4k input tokens, so ~20k toke
 |---|---|
 | Program rules change or sources disagree | `last_verified` dates; the team calls each program; Ridely tells users to confirm |
 | The model says a person is eligible when they are not | Eligibility is in code (`check_eligibility`), not only in the prompt |
-| Open model makes bad tool calls | Validate each tool input against its JSON schema. Send errors back to the model. Pick the model with the test set (M5). |
+| Open model makes bad tool calls | PydanticAI checks each tool input and sends errors back to the model (set `retries` per tool; raise `ModelRetry` with a hint). Pick the model with the test set (M5). |
 | Credits run out | The adapter uses the OpenAI-compatible format, so we can move to another provider by changing env vars. |
 | Telegram is not what seniors use | Prototype only. The harness does not depend on the channel, so SMS can replace it. |
 | Vercel function time limit | Set `maxDuration`. Limit tool rounds. Send "typing" while the agent works. |
