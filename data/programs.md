@@ -1,6 +1,6 @@
 # Ridely — Master Program Rules (DRAFT v0)
 
-Last updated: 2026-11-13. Status: first draft from web research. **VERIFY** means sources do not agree, or we found no current source. Call the program and update the field, the date, and the source.
+Last updated: 2026-11-13. Status: draft from web research; RideProvide and Access Link updated from their official pages. **VERIFY** means sources do not agree, or we found no current source. Call the program and update the field, the date, and the source.
 
 ---
 
@@ -21,11 +21,12 @@ Last updated: 2026-11-13. Status: first draft from web research. **VERIFY** mean
 | Field | Value |
 |---|---|
 | Operator | Greater Mercer Transportation Management Association (GMTMA), 15 Roszel Rd, Ste 101, Princeton |
-| Who can use it | Adults 65+, and visually impaired adults of any age, who live in the service area. |
-| Service area | Mercer County, Plainsboro, south Montgomery (**VERIFY**). |
-| Cost | Yearly membership $40 (single) / $60 (couple). Each ride costs more for more "zones" (**VERIFY** zone prices). |
-| How to book | Become a member first. Then call to book (**VERIFY** notice). |
-| Phone | 609-452-5144, Mon–Fri 8:30–4:30 (**VERIFY**; some sources give 609-452-5140). Website: rideprovide.org |
+| Who can use it | Adults 65+, and visually impaired adults of any age, who live in Mercer County, Plainsboro, or the southern part of Montgomery. |
+| Service area | Anywhere in Mercer County, Plainsboro and south Montgomery. Any trip purpose. |
+| Cost | Membership $40/year (single) or $60/year (family), then a pre-paid account. Fare each way: $9 within one zone (about one town), $13.50 to a neighboring zone, $19 to a third zone, $22.50 farther. 15% off shared rides. $5 extra before 8 am. **Free** to Penn Medicine Princeton Health places and to RWJ Hamilton. No tips. |
+| How to book | Join first (application: 609-452-5140). Book by phone at least **2 business days** before (online: 3 business days). |
+| Phone | Reservations 609-452-5144. Office Mon–Fri 8:30–4:30. Rides Mon–Fri 8 am–5 pm. Closed on holidays. |
+| Notes | RideProvide is also the service provider for Princeton's Crosstown. Source: rideprovide.org/our-service (read 2026-11-13). Page has no date; **VERIFY** fares by phone. |
 
 ## 3. Mercer County TRADE
 
@@ -43,11 +44,11 @@ Last updated: 2026-11-13. Status: first draft from web research. **VERIFY** mean
 | Field | Value |
 |---|---|
 | Operator | NJ Transit |
-| Who can use it | People whose disability stops them from using NJ Transit local buses. A phone interview decides eligibility. Not based on age. |
-| Service area | Near NJ Transit local bus routes (federal ADA rule: ~3/4 mile from a route, during bus hours). **VERIFY** for Princeton. |
-| Cost | **VERIFY** (ADA limit: max 2× the bus fare). |
-| How to book | Apply first (phone interview). Then book at least 1 day before (**VERIFY**: NJ Transit held a hearing on changing the booking window). App available. |
-| Phone | Reservations 973-491-4224 (option 2). |
+| Who can use it | People whose disability stops them from using NJ Transit local buses. Needs an interview (phone or in person) and a current medical form. Not based on age. |
+| Service area | Within 3/4 mile of NJ Transit local bus routes and light rail, on the same days and hours as the local bus (weekends and holidays too, if buses run). |
+| Cost | Not free. Based on the local bus fare and number of zones (exact amount not on the website — **VERIFY**). Exact cash or EZ-Wallet. Personal care attendant rides free. |
+| How to book | Apply: 973-491-4224, option 1. Reserve: option 2 — for tomorrow, every day 7:30 am–4 pm; for later days, every day 7:30 am–3 pm. Also online (accesslink.njtransit.com) and app. No same-day trips. Maximum days ahead: not stated (NJ Transit has proposed a change). |
+| Phone | 973-491-4224 |
 
 ## 5. Medicaid rides (NJ FamilyCare NEMT, by ModivCare)
 
@@ -75,11 +76,14 @@ Last updated: 2026-11-13. Status: first draft from web research. **VERIFY** mean
 
 - Get the current GMTMA "Mobility Guide" (the 2015 one is old).
 - Confirm Crosstown age rule, notice, and phone.
-- Confirm RideProvide zone prices.
-- Confirm Access Link fare and booking window.
+- Confirm Access Link fare amount.
+- Mercer County TRADE pages block automated reading (HTTP 403). Read them in a browser or call.
 - Add: NJ 211 (dial 211) as a fallback; Hopewell / Lawrence / West Windsor township senior vans (only for their residents).
 
 ## Sources (accessed 2026-11-13)
+
+- RideProvide — Our Service: https://rideprovide.org/our-service/
+- NJ Transit Access Link Q&A: https://njtransit.com/accesslinkqanda
 
 - BenefitsCheckUp — Crosstown: https://benefitscheckup.org/program/nj_princeton_princeton_senior_resour
 - BenefitsCheckUp — RideProvide: https://benefitscheckup.org/program/nj_princeton_ride_provide_dignified

@@ -86,8 +86,13 @@ def booking_deadline(program_id: str, trip_date: date, today: date) -> dict:
         last = _minus_business_days(trip_date, n)
         rule = f"at least {n} business day{'s' if n != 1 else ''} before the trip"
     else:  # calendar_days
-        last = _last_business_day_on_or_before(trip_date - timedelta(days=n))
+        last = trip_date - timedelta(days=n)
+        if notice.get("call_days") != "daily":  # most offices take calls on business days only
+            last = _last_business_day_on_or_before(last)
         rule = f"at least {n} day{'s' if n != 1 else ''} before the trip"
+    if notice.get("cutoff_time"):
+        rule += f", by {notice['cutoff_time']} on the last day"
+        out["cutoff_time"] = notice["cutoff_time"]
 
     out["rule"] = rule
     out["last_day_to_call"] = last.isoformat()

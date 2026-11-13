@@ -186,3 +186,14 @@ def test_resolve_place_without_number_does_not_call_census():
         raise AssertionError("should not call the network")
     client = httpx.Client(transport=httpx.MockTransport(boom))
     assert resolve_place("somewhere nice", client=client).source == "not_found"
+
+
+def test_access_link_daily_reservations_with_cutoff():
+    # Trip Monday Nov 30: call by Sunday Nov 29 at 4 pm (reservations are taken every day)
+    r = booking_deadline("access_link", date(2026, 11, 30), today=date(2026, 11, 13))
+    assert r["last_day_to_call"] == "2026-11-29"
+    assert r["cutoff_time"] == "4:00 pm"
+
+
+def test_rideprovide_free_stop_rwj_hamilton():
+    assert check_service_area("rideprovide", PRINCETON, HAMILTON, end_destination_id="rwj_hamilton")["result"] == "in"

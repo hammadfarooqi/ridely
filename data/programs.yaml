@@ -38,33 +38,33 @@
 - id: rideprovide
   name: RideProvide
   operator: Greater Mercer Transportation Management Association (GMTMA)
-  summary: Door-to-door rides for adults 65+ and visually impaired adults in Mercer County, Plainsboro and south Montgomery. Yearly membership.
+  summary: Door-to-door rides for adults 65+ and visually impaired adults in Mercer County, Plainsboro and south Montgomery. Yearly membership plus a fare by zone. Free to Penn Medicine Princeton Health and RWJ Hamilton.
   eligibility:
     rule: rideprovide
     min_age: 65
     visually_impaired_any_age: true
     home_counties: [Mercer]
-    home_towns: [Plainsboro, Montgomery]
+    home_towns: [Plainsboro, Montgomery]   # only the southern part of Montgomery
     needs_registration: true
   area:
     kind: counties
     counties: [Mercer]
-    towns: [Plainsboro, Montgomery]
-  cost: "Membership $40 per year (one person) or $60 per year (couple). Each ride has a fare based on zones (VERIFY prices)."
+    towns: [Plainsboro, Montgomery]   # only the southern part of Montgomery
+    extra_destinations: [penn_medicine_princeton, princeton_fitness_wellness, rwj_hamilton]
+  cost: "Membership $40 per year (one person) or $60 (family), then a pre-paid account. Fare each way: $9 in one zone (about one town), $13.50 to a neighboring zone, $19 to a third zone, $22.50 farther. 15% off shared rides. $5 extra before 8 am. Free to Penn Medicine Princeton Health places and RWJ Hamilton. No tips."
   booking:
     phone: "609-452-5144"
-    phone_note: "Some sources give 609-452-5140. Website: rideprovide.org"
-    hours: "Monday to Friday, 8:30 am to 4:30 pm"
-    notice: {kind: business_days, value: 3}   # VERIFY
+    phone_note: "Reservations: 609-452-5144. Membership application and questions: 609-452-5140. Email info@rideprovide.org. Website rideprovide.org"
+    hours: "Office Monday to Friday 8:30 am to 4:30 pm. Rides Monday to Friday 8 am to 5 pm. Closed on holidays."
+    notice: {kind: business_days, value: 2}   # by phone; online booking needs 3 business days
     max_advance_days: null
-  how_to_register: "Call RideProvide and ask to become a member. Members can then book rides."
-  what_to_say: "I want to become a RideProvide member (or: I am a member) and book a ride on <date> at <time>, from <pickup> to <destination>."
+  how_to_register: "Call 609-452-5140 for a membership application. After you join, set up a pre-paid account. Then call 609-452-5144 to book."
+  what_to_say: "I am a RideProvide member (or: I want to join). I want to book a ride on <date> at <time>, from <pickup> to <destination>."
   verified: false
-  last_verified: "2026-11-13 (web only)"
+  last_verified: "2026-11-13 (rideprovide.org/our-service page)"
   sources:
-    - https://search.nj211.org/search/14bfdeda-15eb-56f1-b522-16da6a44723c
+    - https://rideprovide.org/our-service/
     - https://gmtma.org/senior-programs/
-    - https://hopewelltwp.org/482/Transportation-Options
 
 - id: trade
   name: Mercer County TRADE
@@ -97,27 +97,27 @@
 - id: access_link
   name: NJ Transit Access Link
   operator: NJ Transit
-  summary: ADA paratransit for people whose disability stops them from using local buses. Needs approval first. Near NJ Transit bus routes only.
+  summary: ADA paratransit for people whose disability stops them from using local buses. Needs approval (interview + medical form) first. Only within 3/4 mile of local bus routes, at the same times buses run.
   eligibility:
     rule: access_link
     disability_any_age: true
     needs_registration: true
   area:
-    kind: near_bus_routes   # ~3/4 mile from NJ Transit local bus routes, during bus hours
-  cost: "Low fare, at most 2 times the bus fare (VERIFY exact fare)."
+    kind: near_bus_routes   # 3/4 mile around NJ Transit local bus routes and light rail, same days and hours as the bus
+  cost: "Not free. Fare is based on the local bus fare and the number of zones (ask for the exact amount). Exact cash or EZ-Wallet. A personal care attendant rides free."
   booking:
     phone: "973-491-4224"
-    phone_note: "Press option 2 for reservations. To apply, call and ask for an eligibility interview."
-    hours: "VERIFY"
-    notice: {kind: calendar_days, value: 1}   # VERIFY: NJ Transit has proposed changing the booking window
-    max_advance_days: null
-  how_to_register: "Call NJ Transit Access Link and ask to apply. They do a phone interview about how your disability affects bus use."
+    phone_note: "To apply: option 1. Reservations: option 2 (then 1 for tomorrow, 2 for later days). Also online at accesslink.njtransit.com and in the app."
+    hours: "Reservations every day: for tomorrow 7:30 am to 4 pm; for later days 7:30 am to 3 pm."
+    notice: {kind: calendar_days, value: 1, call_days: daily, cutoff_time: "4:00 pm"}   # no same-day trips
+    max_advance_days: null   # not stated; NJ Transit has proposed changing the window
+  how_to_register: "Call 973-491-4224, option 1. There is an interview (phone or in person) about how the disability stops you from using the bus, and you need a current medical form."
   what_to_say: "I am approved for Access Link (or: I want to apply). I want to book a ride on <date> at <time> from <pickup> to <destination>."
   verified: false
-  last_verified: "2026-11-13 (web only)"
+  last_verified: "2026-11-13 (njtransit.com Access Link pages)"
   sources:
     - https://njtransit.com/accessibility/access-link-ada-paratransit
-    - https://nj.gov/disabilities/employment-independent-living/transportation/request-a-ride.shtml
+    - https://njtransit.com/accesslinkqanda
 
 - id: medicaid_nemt
   name: Medicaid rides (ModivCare)
