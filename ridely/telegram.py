@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
+
+# httpx logs each request URL at INFO. Telegram URLs contain the bot token, so keep these logs off.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 API = "https://api.telegram.org/bot{token}/{method}"
 MAX_LEN = 4000  # Telegram limit is 4096 characters
