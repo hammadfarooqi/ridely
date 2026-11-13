@@ -197,3 +197,21 @@ def test_access_link_daily_reservations_with_cutoff():
 
 def test_rideprovide_free_stop_rwj_hamilton():
     assert check_service_area("rideprovide", PRINCETON, HAMILTON, end_destination_id="rwj_hamilton")["result"] == "in"
+
+
+@pytest.mark.parametrize("q", ["Princeton", "Plainsboro", "Hamilton", "Lawrence", "Trenton"])
+def test_town_names_are_not_destinations(q):
+    assert lookup_destination(q)["result"] == "is_a_town"
+
+
+def test_crosstown_to_plainsboro_town_is_not_the_free_stop():
+    from ridely.agent import Deps, _place
+
+    class Ctx:
+        deps = Deps()
+
+    place, dest_id = _place(Ctx(), "Plainsboro")
+    assert dest_id is None and place.town == "Plainsboro"
+    assert check_service_area("crosstown", PRINCETON, place, end_destination_id=dest_id)["result"] == "out"
+    place, dest_id = _place(Ctx(), "Princeton Medical Center")
+    assert dest_id == "penn_medicine_princeton"

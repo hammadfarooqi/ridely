@@ -28,6 +28,12 @@ def _score(q: str, cand: str) -> float:
 
 
 def lookup_destination(name: str, limit: int = 3) -> dict:
+    from ridely.geo import lookup_town
+
+    town = lookup_town(name)
+    if town:  # "Princeton" or "Hamilton" is a town, not a place in our list
+        return {"query": name, "result": "is_a_town", "town": town.town, "county": town.county, "state": town.state,
+                "message": "This is a town, not a specific place. Ask where in the town, if it matters."}
     q = _norm(name)
     scored = []
     for d in destinations():
