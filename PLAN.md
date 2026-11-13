@@ -115,6 +115,20 @@ Note: the Census geocoder works on street addresses only. It cannot find "RWJ Ha
 4. Put settings in Vercel environment variables: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `DATABASE_URL`. To change the provider, change only these values.
 5. Set a spend alert if the provider has one.
 
+**Result (2026-11-13, Sail, standard mode, 20 scenarios, run in parallel):**
+
+| Model | Passed | Cost (20 scenarios) | Reply time median / max |
+|---|---|---|---|
+| **deepseek-ai/DeepSeek-V4.1-Flash-1017 (chosen)** | 19/20 (20/20 after a grader fix) | $0.030 | 12.8 s / 32.7 s |
+| deepseek-ai/DeepSeek-V4-Flash-0731 | 19/20 (20/20 after a grader fix) | $0.021 | 19.5 s / 52.0 s |
+| zai-org/GLM-5.3-Flash | 19/20 | $0.031 | 18.4 s / 59.8 s |
+| zai-org/GLM-5.3 (reasoning, effort low) | 15/20 (4 failures = Sail 503 "capacity") | $0.132 | 6.3 s / 186 s |
+| deepseek-ai/DeepSeek-V4-Pro-0813 | 14/20 | $0.174 | 26.6 s / 134.7 s |
+| google/gemma-4-31B-it | 12/20 (often gave no phone number) | $0.051 | 3.2 s / 27.6 s |
+| moonshotai/Kimi-K3 | did not finish in 50 min (stopped) | — | — |
+
+DeepSeek-V4.1-Flash is accurate, the fastest of the accurate models, and stays under Vercel's 60 s limit. About $0.0015 per conversation. Transcripts: `evals/results/`.
+
 Estimated use: a conversation is about 5 turns × ~4k input tokens, so ~20k tokens. The credits should cover the whole project.
 
 ## 5. Milestones

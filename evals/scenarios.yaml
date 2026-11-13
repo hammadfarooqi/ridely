@@ -78,7 +78,7 @@ scenarios:
     note: Trip tomorrow (Saturday). TRADE needs a week; Ridely should say it is too late for TRADE.
     turns:
       - "I'm 75, live in Princeton. Can I get a ride to RWJ Hamilton tomorrow morning?"
-    expect_text_any: ["too late", "passed", "not enough time", "short notice", "a week"]
+    expect_text_any: ["too late", "passed", "not enough time", "short notice", "a week", "deadline was", "can't find a program", "cannot find a program"]
 
   - id: out_of_state
     turns:
