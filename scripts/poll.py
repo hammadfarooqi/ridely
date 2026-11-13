@@ -38,12 +38,21 @@ async def main() -> None:
     await tg.call("deleteWebhook", drop_pending_updates=False)
     offset = 0
     while True:
-        r = await tg.http.post(f"https://api.telegram.org/bot{tg.token}/getUpdates",
-                               json={"offset": offset, "timeout": 30}, timeout=40)
-        for upd in r.json().get("result", []):
+        try:
+            r = await tg.http.post(f"https://api.telegram.org/bot{tg.token}/getUpdates",
+                                   json={"offset": offset, "timeout": 30}, timeout=40)
+            updates = r.json().get("result", [])
+        except Exception as e:  # network hiccup: wait and try again, do not stop the bot
+            logging.warning("getUpdates failed (%s); retrying in 5 s", type(e).__name__)
+            await asyncio.sleep(5)
+            continue
+        for upd in updates:
             offset = upd["update_id"] + 1
             text = (upd.get("message") or {}).get("text", "")
-            status = await handle_update(upd, store, tg, model)
+            try:
+                status = await handle_update(upd, store, tg, model)
+            except Exception as e:
+                status = f"crashed ({type(e).__name__})"
             logging.info("update %s %r -> %s", upd["update_id"], text[:60], status)
 
 
