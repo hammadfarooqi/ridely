@@ -26,7 +26,8 @@ def test_minimal_mode_has_no_tools_and_all_facts():
 
     run(run_turn("hi", None, FunctionModel(fn), mode="minimal"))
     assert seen["tools"] == []
-    assert "609-452-5144" in seen["instructions"] and "RWJ University Hospital Hamilton" in seen["instructions"]
+    assert "609-452-5144" in seen["instructions"] and "RULES (CSV):" in seen["instructions"]
+    assert "program,min_age,or_disability" in seen["instructions"]  # the sheet is pasted in
 
 
 def test_standard_mode_has_six_tools():
@@ -65,16 +66,29 @@ def test_guardrails_blocks_ruled_out_program():
 
     def fn(messages, info):
         calls["n"] += 1
-        if calls["n"] == 1:  # 62-year-old in Hamilton -> RideProvide is 'no'
-            return ModelResponse(parts=[ToolCallPart("check_eligibility", {"home": "Hamilton", "age": 62,
-                                                                           "visually_impaired": False,
-                                                                           "has_disability": False})])
+        if calls["n"] == 1:  # 40-year-old in Hamilton, no Medicaid -> Medicaid rides are 'no'
+            return ModelResponse(parts=[ToolCallPart("check_eligibility", {"home": "Hamilton", "age": 40,
+                                                                           "has_medicaid": False})])
         if calls["n"] == 2:
-            return ModelResponse(parts=[TextPart("Try RideProvide at 609-452-5144.")])
+            return ModelResponse(parts=[TextPart("Try Medicaid rides at 1-866-527-9933.")])
         return ModelResponse(parts=[TextPart("Try TRADE at 609-530-1971.")])
 
     r = run(run_turn("hi", None, FunctionModel(fn), mode="guardrails"))
     assert calls["n"] == 3 and "609-530-1971" in r.reply
+
+
+def test_guardrails_allows_number_shared_with_a_fitting_program():
+    calls = {"n": 0}
+
+    def fn(messages, info):
+        calls["n"] += 1
+        if calls["n"] == 1:  # 70 in Princeton, wheelchair: Crosstown 'no', but... and RideProvide 'no'
+            return ModelResponse(parts=[ToolCallPart("check_eligibility", {"home": "Princeton", "age": 70,
+                                                                           "uses_wheelchair": False})])
+        return ModelResponse(parts=[TextPart("Crosstown: book at 609-452-5144.")])  # RideProvide is future_only
+
+    r = run(run_turn("hi", None, FunctionModel(fn), mode="guardrails"))
+    assert calls["n"] == 2 and "609-452-5144" in r.reply
 
 
 def test_guardrails_rejects_long_reply():

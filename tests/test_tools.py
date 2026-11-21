@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 
 import httpx
 import pytest
@@ -44,8 +44,10 @@ def test_medicaid_two_business_days_skips_thanksgiving():
 
 def test_trade_too_early_and_too_late():
     assert booking_deadline("trade", date(2026, 12, 31), today=date(2026, 11, 13))["result"] == "too_early"
-    late = booking_deadline("trade", date(2026, 11, 16), today=date(2026, 11, 13))
+    late = booking_deadline("trade", date(2026, 11, 16), today=date(2026, 11, 13))  # needs Thu Nov 12
     assert late["result"] == "too_late"
+    ok = booking_deadline("trade", date(2026, 11, 20), today=date(2026, 11, 13))
+    assert ok["last_day_to_call"] == "2026-11-18" and ok["call_by_time"] == "4 pm"
 
 
 def test_call_today():
@@ -54,9 +56,24 @@ def test_call_today():
     assert r["result"] == "call_today"
 
 
-def test_no_booking_and_past_trip():
-    assert booking_deadline("muni_transit", date(2026, 11, 20), date(2026, 11, 13))["result"] == "no_booking_needed"
+def test_crosstown_noon_cutoff():
+    before = booking_deadline("crosstown", date(2026, 11, 16), date(2026, 11, 13), now=time(10, 0))
+    after = booking_deadline("crosstown", date(2026, 11, 16), date(2026, 11, 13), now=time(12, 30))
+    assert before["result"] == "call_today" and before["call_by_time"] == "noon"
+    assert after["result"] == "too_late"
+
+
+def test_past_trip_and_ride_hours():
     assert booking_deadline("crosstown", date(2026, 11, 1), date(2026, 11, 13))["result"] == "trip_in_past"
+    late = booking_deadline("trade", date(2026, 11, 20), date(2026, 11, 13), trip_time=time(16, 0))
+    early_ok = booking_deadline("trade", date(2026, 11, 20), date(2026, 11, 13), trip_time=time(9, 30))
+    assert late["trip_time_ok"] is False and early_ok["trip_time_ok"] is True
+
+
+def test_access_link_one_business_day_by_4pm():
+    r = booking_deadline("access_link", date(2026, 11, 30), today=date(2026, 11, 13))  # Monday
+    assert r["last_day_to_call"] == "2026-11-27" and r["call_by_time"] == "4 pm"
+    assert booking_deadline("access_link", date(2026, 11, 30), date(2026, 11, 20))["result"] == "too_early"  # > 7 days
 
 
 # ---------- eligibility ----------
@@ -64,14 +81,16 @@ def test_no_booking_and_past_trip():
 def test_70_year_old_in_princeton():
     r = check_eligibility(Person(age=70, home=PRINCETON))
     assert status(r, "crosstown") == "likely"
-    assert status(r, "rideprovide") == "likely"
     assert status(r, "trade") == "likely"
+    assert status(r, "rideprovide") == "future_only"  # waitlist
     assert status(r, "medicaid_nemt") == "maybe"
-    assert status(r, "access_link") == "maybe"
+    assert status(r, "access_link") == "maybe"  # certified?
+    assert [x["program_id"] for x in r][:2] == ["trade", "crosstown"]  # sheet row order inside a status
 
 
 def test_62_year_old_in_hamilton():
-    r = check_eligibility(Person(age=62, home=HAMILTON, has_disability=False, visually_impaired=False))
+    r = check_eligibility(Person(age=62, home=HAMILTON, physical_disability=False, visually_impaired=False,
+                                 other_disability=False, access_link_certified=False))
     assert status(r, "trade") == "likely"
     assert status(r, "rideprovide") == "no"
     assert status(r, "crosstown") == "no"
@@ -79,15 +98,26 @@ def test_62_year_old_in_hamilton():
 
 
 def test_40_year_old_wheelchair_user_princeton():
-    r = check_eligibility(Person(age=40, has_disability=True, home=PRINCETON))
+    r = check_eligibility(Person(age=40, uses_wheelchair=True, home=PRINCETON))
     assert status(r, "trade") == "likely"
-    assert status(r, "access_link") == "maybe"
-    assert status(r, "rideprovide") == "maybe"  # could still be visually impaired: unknown
+    assert status(r, "crosstown") == "no"  # no wheelchairs
+    assert status(r, "access_link") == "maybe"  # certified?
+    certified = check_eligibility(Person(age=40, uses_wheelchair=True, access_link_certified=True, home=PRINCETON))
+    assert status(certified, "access_link") == "likely"
+    not_cert = check_eligibility(Person(age=40, uses_wheelchair=True, access_link_certified=False, home=PRINCETON))
+    assert status(not_cert, "access_link") == "future_only"
 
 
-def test_visually_impaired_any_age_rideprovide():
+def test_crosstown_physical_disability_any_age():
+    r = check_eligibility(Person(age=50, physical_disability=True, uses_wheelchair=False, home=PRINCETON))
+    assert status(r, "crosstown") == "likely"
+    vis = check_eligibility(Person(age=50, visually_impaired=True, physical_disability=False, home=PRINCETON))
+    assert status(vis, "crosstown") == "no"
+
+
+def test_visually_impaired_plainsboro():
     r = check_eligibility(Person(age=30, visually_impaired=True, home=PLAINSBORO))
-    assert status(r, "rideprovide") == "likely"
+    assert status(r, "rideprovide") == "future_only"  # fits, but waitlist
     assert status(r, "trade") == "no"  # not Mercer
 
 
@@ -99,9 +129,11 @@ def test_missing_age_and_home_is_maybe():
 
 
 def test_medicaid_rules():
-    assert status(check_eligibility(Person(has_medicaid=True, trip_is_medical=True)), "medicaid_nemt") == "likely"
-    assert status(check_eligibility(Person(has_medicaid=True, trip_is_medical=False)), "medicaid_nemt") == "no"
-    assert status(check_eligibility(Person(has_medicaid=False)), "medicaid_nemt") == "no"
+    nj = PRINCETON
+    assert status(check_eligibility(Person(has_medicaid=True, trip_is_medical=True, home=nj)), "medicaid_nemt") == "likely"
+    assert status(check_eligibility(Person(has_medicaid=True, trip_is_medical=False, home=nj)), "medicaid_nemt") == "no"
+    assert status(check_eligibility(Person(has_medicaid=False, home=nj)), "medicaid_nemt") == "no"
+    assert status(check_eligibility(Person(has_medicaid=True, trip_is_medical=True, home=PHILLY)), "medicaid_nemt") == "no"
 
 
 # ---------- service area ----------
@@ -188,15 +220,9 @@ def test_resolve_place_without_number_does_not_call_census():
     assert resolve_place("somewhere nice", client=client).source == "not_found"
 
 
-def test_access_link_daily_reservations_with_cutoff():
-    # Trip Monday Nov 30: call by Sunday Nov 29 at 4 pm (reservations are taken every day)
-    r = booking_deadline("access_link", date(2026, 11, 30), today=date(2026, 11, 13))
-    assert r["last_day_to_call"] == "2026-11-29"
-    assert r["cutoff_time"] == "4:00 pm"
-
-
-def test_rideprovide_free_stop_rwj_hamilton():
-    assert check_service_area("rideprovide", PRINCETON, HAMILTON, end_destination_id="rwj_hamilton")["result"] == "in"
+def test_trade_also_goes_to_penn_medicine():
+    assert check_service_area("trade", PRINCETON, PLAINSBORO)["result"] == "out"
+    assert check_service_area("trade", PRINCETON, PLAINSBORO, end_destination_id="penn_medicine_princeton")["result"] == "in"
 
 
 @pytest.mark.parametrize("q", ["Princeton", "Plainsboro", "Hamilton", "Lawrence", "Trenton"])
@@ -215,3 +241,16 @@ def test_crosstown_to_plainsboro_town_is_not_the_free_stop():
     assert check_service_area("crosstown", PRINCETON, place, end_destination_id=dest_id)["result"] == "out"
     place, dest_id = _place(Ctx(), "Princeton Medical Center")
     assert dest_id == "penn_medicine_princeton"
+
+
+# ---------- rules sheet ----------
+
+def test_rules_sheet_rejects_values_the_code_does_not_know():
+    from ridely import data
+
+    good = dict(data.programs()["trade"]["row"])
+    for field, bad in [("area", "Bucks County"), ("sign_up", "maybe later"), ("wheelchair", "sometimes"),
+                       ("or_disability", "hearing"), ("call_by", "4pm"), ("program", "Uber")]:
+        row = {**good, field: bad}
+        with pytest.raises(data.RulesSheetError):
+            data._parse_row(row)

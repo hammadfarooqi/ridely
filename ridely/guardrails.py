@@ -16,13 +16,13 @@ import re
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.messages import ToolReturnPart
 
-from ridely.data import known_phone_numbers, programs
+from ridely.data import known_phone_numbers, program_phone_numbers, programs
 
 PHONE_RE = re.compile(r"\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
 MAX_REPLY_CHARS = 1400
 
-# Programs whose phone number is also used as a general help number. Mentioning them is not a recommendation.
-_SHARED_HELP_NUMBERS = {"6097519699"}
+# General help numbers. Mentioning them is not a recommendation.
+_SHARED_HELP_NUMBERS = {"6097519699"}  # CMAP
 
 
 def _digits(s: str) -> str:
@@ -60,9 +60,11 @@ def check_reply(ctx: RunContext, output: str) -> str:
         )
 
     ruled_out = _ruled_out_programs(ctx)
+    found10 = {n[-10:] for n in found}
+    still_ok = set().union(*(program_phone_numbers(p) for p in programs() if p not in ruled_out)) | _SHARED_HELP_NUMBERS
     for pid in ruled_out:
-        phone = programs()[pid]["booking"].get("phone")
-        if phone and _digits(phone) not in _SHARED_HELP_NUMBERS and _digits(phone) in found:
+        bad = (program_phone_numbers(pid) - still_ok) & found10
+        if bad:
             raise ModelRetry(
                 f"check_eligibility said the rider cannot use {programs()[pid]['name']} (status 'no'), "
                 "but your reply gives its phone number. Do not recommend it. Rewrite the reply."

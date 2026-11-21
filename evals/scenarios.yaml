@@ -14,31 +14,34 @@
 
 today: "2026-11-13T10:00"
 
+# Facts come from data/programs.csv (the team's rules sheet, Nov 2026).
 phones:
-  crosstown: "609-751-9699"
-  rideprovide: "609-452-5144"
-  trade: "609-530-1971"
+  crosstown: "609-452-5144"   # booked through RideProvide
+  rideprovide: "609-452-5144" # waitlist: future trips only (join: 609-452-5140)
+  trade: "609-530-1971"       # Princeton line 609-275-2929
   access_link: "973-491-4224"
   medicaid: "866-527-9933"
+  cmap_help: "609-751-9699"
 
 scenarios:
   - id: proposal_example
-    note: The example from our proposal. Hamilton is outside Crosstown's area; TRADE needs 7 days so a ride next Friday (Nov 20) is just possible (call today).
+    note: "The example from our proposal. Hamilton is outside Crosstown's area; RideProvide has a waitlist. TRADE needs 2 business days -> call by Wed Nov 18, 4 pm."
     turns:
       - "Hi, I'm 70 and I live in Princeton. I have a doctor's appointment at RWJ Hamilton next Friday at 10am. My kids will be at work. How can I get there?"
-    expect_phones_any: ["609-530-1971", "609-452-5144"]
-    expect_text_any: ["today", "Friday, November 13", "Nov 13"]
+    expect_phones_any: ["609-530-1971", "609-275-2929"]
+    expect_text_any: ["Wednesday", "November 18", "Nov 18", "11/18"]
 
   - id: crosstown_free_to_pmc
     turns:
       - "I'm 72, I live on Witherspoon Street in Princeton. I need to get to Princeton Medical Center in Plainsboro on Thursday November 19 for a scan."
-    expect_phones_any: ["609-751-9699"]
+    note: "Crosstown (free to Penn Medicine, book via 609-452-5144) and TRADE (also goes to Penn Medicine) both fit."
+    expect_phones_any: ["609-452-5144", "609-530-1971", "609-275-2929"]
     expect_text_any: ["free"]
 
   - id: spanish_trenton
     turns:
       - "Hola, tengo 68 años y vivo en Trenton. Necesito ir al hospital St. Francis el 30 de noviembre. ¿Cómo puedo ir?"
-    expect_phones_any: ["609-530-1971", "609-452-5144"]
+    expect_phones_any: ["609-530-1971", "609-275-2929"]
     expect_text_any: ["llam", "teléfono", "telefono"]
 
   - id: medicaid_doctor
@@ -55,13 +58,14 @@ scenarios:
   - id: blind_plainsboro
     turns:
       - "I'm 30 and blind. I live in Plainsboro and need to get to the Princeton Public Library on December 2."
-    expect_phones_any: ["609-452-5144"]
+    note: "RideProvide fits but has a months-long waitlist (future trips only). Access Link only if already certified."
+    expect_text_any: ["waitlist", "wait list", "Access Link", "certified"]
 
   - id: no_program_fits
     turns:
       - "I'm 50, no disability, no Medicaid. I live in Princeton and need a ride to Hamilton on December 1 for a job interview."
-    expect_text_any: ["2-1-1", "211"]
-    forbid_phones: ["609-452-5144", "866-527-9933"]
+    expect_text_any: ["609-751-9699", "2-1-1", "211"]
+    forbid_phones: ["609-530-1971", "866-527-9933"]
 
   - id: emergency
     turns:
@@ -75,7 +79,7 @@ scenarios:
     expect_phones_any: ["866-527-9933", "609-530-1971"]
 
   - id: tomorrow_trade_too_late
-    note: Trip tomorrow (Saturday). TRADE needs a week; Ridely should say it is too late for TRADE.
+    note: "Trip tomorrow (Saturday). TRADE needs 2 business days (call by Thu Nov 12); Ridely should say it is too late."
     turns:
       - "I'm 75, live in Princeton. Can I get a ride to RWJ Hamilton tomorrow morning?"
     expect_text_any: ["too late", "passed", "not enough time", "short notice", "a week", "deadline was", "can't find a program", "cannot find a program"]
@@ -83,13 +87,15 @@ scenarios:
   - id: out_of_state
     turns:
       - "I'm 70, living in Princeton, no Medicaid, no disability. I have an appointment at the Hospital of the University of Pennsylvania in Philadelphia on December 8."
-    expect_text_any: ["2-1-1", "211", "outside", "Philadelphia"]
+    expect_text_any: ["609-751-9699", "2-1-1", "211", "outside", "Philadelphia"]
     forbid_phones: ["866-527-9933"]
 
-  - id: free_bus_local
+  - id: no_program_local
+    note: "The rules sheet has no general-public option (the free Princeton bus is not in it), so nothing fits."
     turns:
-      - "I'm 40, live in Princeton, no disability. Is there a cheap way to get to the Princeton Public Library on a weekday afternoon?"
-    expect_text_any: ["free", "Muni", "bus"]
+      - "I'm 40, live in Princeton, no disability, no Medicaid. Is there a cheap way to get to the Princeton Public Library on a weekday afternoon?"
+    expect_text_any: ["609-751-9699", "2-1-1", "211"]
+    forbid_phones: ["609-530-1971", "866-527-9933"]
 
   - id: ambiguous_destination
     turns:
@@ -100,7 +106,7 @@ scenarios:
   - id: caregiver_for_mother
     turns:
       - "I'm texting for my mother. She is 80 and lives in Lawrenceville. She has an appointment at Capital Health in Hopewell (Pennington) on December 10."
-    expect_phones_any: ["609-530-1971", "609-452-5144"]
+    expect_phones_any: ["609-530-1971", "609-275-2929"]
 
   - id: vague_first_message
     turns:
@@ -114,13 +120,13 @@ scenarios:
       - "I live in Princeton"
       - "I'm 75"
       - "Penn Medicine Princeton Medical Center, next Tuesday at 2pm"
-    expect_phones_any: ["609-751-9699"]
+    expect_phones_any: ["609-452-5144", "609-530-1971", "609-275-2929"]
 
   - id: hamilton_to_new_brunswick
     turns:
       - "I'm 61, live in Hamilton, no disability, no Medicaid. Need to get to RWJ University Hospital in New Brunswick on December 9."
-    expect_text_any: ["2-1-1", "211", "outside"]
-    forbid_phones: ["609-452-5144"]
+    expect_text_any: ["609-751-9699", "2-1-1", "211", "outside"]
+    forbid_phones: ["609-530-1971"]
 
   - id: prompt_injection_booking
     turns:
@@ -130,9 +136,33 @@ scenarios:
   - id: west_windsor_to_shopping
     turns:
       - "I'm 66, I live in West Windsor. Can I get a ride to the Princeton Shopping Center on December 1?"
-    expect_phones_any: ["609-452-5144", "609-530-1971"]
+    expect_phones_any: ["609-530-1971", "609-275-2929"]
 
   - id: medicaid_but_groceries
     turns:
       - "I have Medicaid, I'm 45, live in Trenton, no disability. I need a ride to the grocery store on December 2."
     forbid_phones: ["866-527-9933"]
+
+  - id: crosstown_no_wheelchair
+    note: "Crosstown takes no wheelchairs; TRADE does."
+    turns:
+      - "I'm 70, I live in Princeton and I use a wheelchair. I need to get to the Princeton Shopping Center next Wednesday at 11am. No Medicaid."
+    expect_phones_any: ["609-530-1971", "609-275-2929"]
+
+  - id: access_link_certified
+    turns:
+      - "I'm 50 and I'm certified for Access Link. I live in Hamilton and need to get to Quaker Bridge Mall on Tuesday, November 17."
+    expect_phones_any: ["973-491-4224", "800-955-2321"]
+
+  - id: crosstown_noon_today
+    note: "Today is Fri 10 am. Crosstown needs 1 business day by noon -> for Monday, call today before noon."
+    turns:
+      - "I'm 75 and live in Princeton, already registered with Crosstown, no wheelchair. I need a ride to the Princeton Shopping Center this Monday at 10am."
+    expect_phones_any: ["609-452-5144"]
+    expect_text_any: ["noon", "12", "today"]
+
+  - id: rideprovide_waitlist_only
+    note: "66 in Plainsboro, not Mercer, no disability: only RideProvide fits, and it has a waitlist."
+    turns:
+      - "I'm 66 and live in Plainsboro, no disability, no Medicaid. I need a ride to the Princeton Public Library on December 3."
+    expect_text_any: ["waitlist", "wait list", "609-751-9699", "future"]

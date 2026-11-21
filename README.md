@@ -2,7 +2,7 @@
 
 Ridely is a text agent. Older adults and people with disabilities in the Princeton, NJ area send it a message about a trip. Ridely tells them which free or low-cost ride program fits, the cost, who to call, what to say, and the last day to book. Ridely does not book rides.
 
-See [PLAN.md](PLAN.md) for the design and [data/programs.md](data/programs.md) for the program rules.
+See [PLAN.md](PLAN.md) for the design and [data/programs.csv](data/programs.csv) for the program rules (the team's rules sheet).
 
 ## How it works
 
@@ -20,7 +20,7 @@ The code decides eligibility, service areas and deadlines (`ridely/tools/`). The
 
 | Mode | What it does |
 |---|---|
-| `minimal` | No tools. All program facts are in the prompt. The model decides everything. |
+| `minimal` | Cyron's prompt: no tools. The rules sheet is pasted into the prompt. The model decides everything. |
 | `standard` (default) | 6 read-only tools. Code decides eligibility, area and deadlines. |
 | `guardrails` | `standard` + reply checks (only phone numbers from our data; no program that the eligibility tool ruled out; short replies; no Markdown), a fixed 911 reply for emergencies, and removal of ID numbers before the model or the database sees them. |
 
@@ -77,9 +77,17 @@ Results (pass/fail and full transcripts) go to `evals/results/`.
 
 ## Change program facts
 
-1. Edit `data/programs.md` (for people) and `data/programs.yaml` (for the code). Keep them the same.
-2. Update `last_verified` and `sources`.
-3. Run `uv run pytest`.
+The rules sheet is the one source of truth.
+
+1. Edit the "Rules" tab of the team's Google Sheet. Keep the same columns.
+2. Download it as CSV (File > Download > Comma-separated values) and save it as `data/programs.csv`.
+3. Run `uv run pytest`. If a cell has a value the code does not know (a new area, sign-up type, or program),
+   a test fails and the message says what to add in `ridely/data.py`.
+4. Commit and push to `main`. Vercel deploys the new rules in about a minute.
+
+Rules for the columns: `or_disability` is `any`, `physical`, `visual` or `certified`; `wheelchair` is `yes`, `no`
+or `with doctor's form`; `sign_up` starts with `none`, `on first call`, `register first`, `certification first`
+or `waitlist`; `call_by` is a 24-hour time like `16:00`; places in `also_goes_to` must be in `data/destinations.yaml`.
 
 ## Files
 
@@ -93,5 +101,5 @@ Results (pass/fail and full transcripts) go to `evals/results/`.
 | `ridely/guardrails.py` | Checks for `guardrails` mode |
 | `ridely/bot.py` | One Telegram update: commands, agent turn, errors |
 | `ridely/store.py` | Neon Postgres or in-memory storage |
-| `data/` | Program facts and common destinations |
+| `data/` | Rules sheet (`programs.csv`) and common destinations |
 | `scripts/` | `chat.py`, `poll.py`, `setup.py`, `eval.py` |

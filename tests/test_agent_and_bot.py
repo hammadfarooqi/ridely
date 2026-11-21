@@ -27,7 +27,7 @@ def scripted(steps):
             name, args = steps[n_tool_returns]
             return ModelResponse(parts=[ToolCallPart(name, args)])
         returns = [p for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]
-        return ModelResponse(parts=[TextPart("FINAL " + json.dumps([r.content for r in returns], default=str)[:3000])])
+        return ModelResponse(parts=[TextPart("FINAL " + json.dumps([r.content for r in returns], default=str)[:12000])])
     return FunctionModel(fn)
 
 
@@ -43,7 +43,7 @@ def test_agent_tools_run_and_history_round_trips():
     assert r.reply.startswith("FINAL")
     assert "rwj_hamilton" in r.reply
     assert '"result": "in"' in r.reply or "'result': 'in'" in r.reply or "in" in r.reply
-    assert "2026-11-13" in r.reply  # TRADE: 7 days before Nov 20 -> Nov 13 (today)
+    assert "2026-11-18" in r.reply  # TRADE: 2 business days before Fri Nov 20 -> Wed Nov 18
     history = load_history(r.history_json)
     assert len(history) >= 6
     r2 = run(run_turn("thanks", r.history_json, TestModel(call_tools=[]), deps))

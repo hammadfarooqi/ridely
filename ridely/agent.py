@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -22,8 +22,8 @@ from ridely.tools.eligibility import Person, check_eligibility as _eligibility
 from ridely.tools.service_area import check_service_area as _service_area
 
 TZ = ZoneInfo("America/New_York")
-ProgramId = Literal["crosstown", "rideprovide", "trade", "access_link", "medicaid_nemt", "muni_transit"]
-assert set(ProgramId.__args__) == set(data.programs()), "ProgramId must list every program in programs.yaml"
+ProgramId = Literal["medicaid_nemt", "trade", "crosstown", "access_link", "rideprovide"]
+assert set(ProgramId.__args__) == set(data.programs()), "ProgramId must list every program in data/programs.csv"
 
 MAX_MODEL_REQUESTS = 8  # stops endless tool loops in one turn
 MAX_TURNS_KEPT = 12  # user turns of history sent to the model
@@ -55,22 +55,31 @@ def _place(ctx: RunContext[Deps], text: str) -> tuple[Place, str | None]:
 
 
 def get_program_details(ctx: RunContext[Deps], program_id: ProgramId) -> dict:
-    """Full facts for one program: who can use it, area, cost, phone, hours, notice, how to register, what to say.
+    """Facts for one program from the rules sheet: area, extra stops, cost, phone, online booking, ride hours,
+    sign-up, wheelchair, notice, and a note to pass on to the rider.
 
     Args:
         program_id: One of the program ids from the program list.
     """
-    p = dict(data.programs()[program_id])
-    p.pop("eligibility", None)  # eligibility is decided by check_eligibility
-    return p
+    p = data.programs()[program_id]
+    return {
+        "name": p["name"], "cost": p["cost"], "phone": p["phone"], "book_online": p["book_online"],
+        "area": p["area"]["text"], "also_goes_to": [d["name"] for d in p["also_goes_to"]],
+        "ride_hours": p["ride_hours"], "wheelchair": p["wheelchair"], "sign_up": p["sign_up_text"],
+        "notice_business_days": p["notice_business_days"], "call_by": p["call_by"],
+        "max_days_ahead": p["max_days_ahead"], "reply_note": p["reply_note"], "source": p["source"],
+    }
 
 
 def check_eligibility(
     ctx: RunContext[Deps],
     home: str | None = None,
     age: int | None = None,
-    has_disability: bool | None = None,
+    physical_disability: bool | None = None,
     visually_impaired: bool | None = None,
+    other_disability: bool | None = None,
+    access_link_certified: bool | None = None,
+    uses_wheelchair: bool | None = None,
     has_medicaid: bool | None = None,
     trip_is_medical: bool | None = None,
 ) -> dict:
@@ -79,19 +88,24 @@ def check_eligibility(
     Args:
         home: The rider's home town or street address, e.g. "Princeton" or "45 Stockton St, Princeton NJ".
         age: Rider's age in years.
-        has_disability: True if the rider has a disability that makes travel or using the bus hard.
+        physical_disability: True if the rider has a physical disability (trouble walking, uses a walker, etc.).
         visually_impaired: True if the rider is blind or has low vision.
+        other_disability: True if the rider has another disability that makes travel hard.
+        access_link_certified: True if the rider is already certified (approved) for NJ Transit Access Link.
+        uses_wheelchair: True if the rider uses a wheelchair.
         has_medicaid: True if the rider has NJ Medicaid / NJ FamilyCare.
         trip_is_medical: True if the trip is to a doctor, hospital, clinic, dialysis, therapy or similar.
     """
     if age is not None and not (0 < age < 120):
         raise ModelRetry("Age must be a number of years between 1 and 119. Ask the user if unsure.")
     place = resolve_place(home, client=ctx.deps.http) if home else None
-    if home and place and place.town is None:
+    if home and place and place.town is None and place.state is None:
         place = None
-    results = _eligibility(Person(age=age, visually_impaired=visually_impaired, has_disability=has_disability,
-                                  has_medicaid=has_medicaid, trip_is_medical=trip_is_medical, home=place))
-    out = {"home_resolved": place.to_dict() if place else None, "programs": results}
+    person = Person(age=age, physical_disability=physical_disability, visually_impaired=visually_impaired,
+                    other_disability=other_disability, access_link_certified=access_link_certified,
+                    uses_wheelchair=uses_wheelchair, has_medicaid=has_medicaid, trip_is_medical=trip_is_medical,
+                    home=place)
+    out = {"home_resolved": place.to_dict() if place else None, "programs": _eligibility(person)}
     if home and place is None:
         out["note"] = f"Could not find the town for '{home}'. Ask for the town name."
     return out
@@ -128,22 +142,25 @@ def check_service_area(ctx: RunContext[Deps], program_id: ProgramId, start: str,
     return _service_area(program_id, s, e, end_destination_id=dest_id)
 
 
-def booking_deadline(ctx: RunContext[Deps], program_id: ProgramId, trip_date: date) -> dict:
-    """The last day to call to book a ride with a program, for a trip on trip_date.
+def booking_deadline(ctx: RunContext[Deps], program_id: ProgramId, trip_date: date,
+                     trip_time: time | None = None) -> dict:
+    """The last day and time to call to book a ride with a program, for a trip on trip_date.
+    Also checks the trip time against the program's ride hours.
 
     Args:
         program_id: The program.
         trip_date: The day of the trip, as YYYY-MM-DD. Work out the date from words like "Friday" using today's date.
+        trip_time: The pickup or appointment time as HH:MM (24-hour), if the user said it.
     """
     if (trip_date - ctx.deps.today).days > 366:
         raise ModelRetry("That date is more than a year away. Check the year.")
-    return _deadline(program_id, trip_date, ctx.deps.today)
+    return _deadline(program_id, trip_date, ctx.deps.today, now=ctx.deps.now.time(), trip_time=trip_time)
 
 
 # ---------- agents (modes) ----------
 #
 # RIDELY_MODE picks one:
-#   minimal    - no tools. All program facts are in the prompt; the model decides everything.
+#   minimal    - Cyron's prompt: no tools. The rules sheet is in the prompt; the model decides everything.
 #   standard   - 6 read-only tools; code decides eligibility, area and deadlines. (default)
 #   guardrails - standard + reply checks (phone numbers only from our data, no program the
 #                eligibility tool ruled out, short replies) + emergency/ID-number filters in the bot.

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import re
+from datetime import date, time, timedelta
 
 from ridely.data import programs
 
@@ -63,57 +64,85 @@ def _last_business_day_on_or_before(d: date) -> date:
     return d
 
 
-def booking_deadline(program_id: str, trip_date: date, today: date) -> dict:
+def _clock(hhmm: str) -> time:
+    h, m = hhmm.split(":")
+    return time(int(h), int(m))
+
+
+def _fmt(t: time) -> str:
+    return t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower().replace("12 pm", "noon")
+
+
+_HOURS_RE = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*[–-]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)", re.I)
+
+
+def _hours_range(text: str | None) -> tuple[time, time] | None:
+    m = _HOURS_RE.search(text or "")
+    if not m:
+        return None
+
+    def t(h, mi, ap):
+        h = int(h) % 12 + (12 if ap.lower() == "pm" else 0)
+        return time(h, int(mi or 0))
+
+    return t(m[1], m[2], m[3]), t(m[4], m[5], m[6])
+
+
+def booking_deadline(program_id: str, trip_date: date, today: date, now: time | None = None,
+                     trip_time: time | None = None) -> dict:
+    """Last day (and time) to call, from the sheet: notice_business_days, call_by, max_days_ahead, ride_hours.
+    Business days skip weekends and U.S. federal holidays."""
     prog = programs().get(program_id)
     if prog is None:
         return {"program_id": program_id, "result": "unknown_program"}
-    b = prog["booking"]
-    notice = b["notice"]
     out: dict = {"program_id": program_id, "name": prog["name"], "trip_date": trip_date.isoformat(),
-                 "today": today.isoformat(), "phone": b.get("phone"), "office_hours": b.get("hours")}
+                 "trip_weekday": trip_date.strftime("%A"), "today": today.isoformat(), "phone": prog["phone"]}
+    if prog["book_online"]:
+        out["book_online"] = prog["book_online"]
+    if prog["ride_hours"]:
+        out["ride_hours"] = prog["ride_hours"]
+        rng = _hours_range(prog["ride_hours"])
+        if trip_time and rng:
+            ok = rng[0] <= trip_time <= rng[1]
+            out["trip_time_ok"] = ok
+            if not ok:
+                out["trip_time_note"] = f"The trip time {_fmt(trip_time)} is outside ride hours ({prog['ride_hours']})."
 
     if trip_date < today:
         out["result"] = "trip_in_past"
         out["message"] = "The trip date is before today. Check the date with the user."
         return out
 
-    kind, n = notice["kind"], int(notice["value"])
-    if kind == "none":
+    n = prog["notice_business_days"]
+    if not n:
         out["result"] = "no_booking_needed"
-        out["message"] = "No booking needed."
+        out["message"] = "No advance booking needed."
         return out
-    if kind == "business_days":
-        last = _minus_business_days(trip_date, n)
-        rule = f"at least {n} business day{'s' if n != 1 else ''} before the trip"
-    else:  # calendar_days
-        last = trip_date - timedelta(days=n)
-        if notice.get("call_days") != "daily":  # most offices take calls on business days only
-            last = _last_business_day_on_or_before(last)
-        rule = f"at least {n} day{'s' if n != 1 else ''} before the trip"
-    if notice.get("cutoff_time"):
-        rule += f", by {notice['cutoff_time']} on the last day"
-        out["cutoff_time"] = notice["cutoff_time"]
-
+    last = _minus_business_days(trip_date, n)
+    cutoff = _clock(prog["call_by"]) if prog["call_by"] else None
+    rule = f"at least {n} business day{'s' if n != 1 else ''} before the trip (weekends and holidays do not count)"
+    if cutoff:
+        rule += f", by {_fmt(cutoff)} on the last day"
+        out["call_by_time"] = _fmt(cutoff)
     out["rule"] = rule
     out["last_day_to_call"] = last.isoformat()
     out["last_day_to_call_weekday"] = last.strftime("%A")
-    out["days_until_last_day"] = (last - today).days
 
-    max_adv = b.get("max_advance_days")
+    max_adv = prog["max_days_ahead"]
+    by = f"{last.strftime('%A, %B %d')}" + (f" at {_fmt(cutoff)}" if cutoff else "")
     if max_adv is not None and (trip_date - today).days > max_adv:
         first = trip_date - timedelta(days=max_adv)
         out["result"] = "too_early"
         out["first_day_to_call"] = first.isoformat()
-        out["message"] = f"Too early to book. Call on or after {first.strftime('%A, %B %d')}."
-    elif last < today:
+        out["message"] = f"Too early to book: they take bookings at most {max_adv} days ahead. Call on or after {first.strftime('%A, %B %d')}, and by {by}."
+    elif last < today or (last == today and cutoff and now and now > cutoff):
         out["result"] = "too_late"
-        out["message"] = f"The booking deadline ({last.strftime('%A, %B %d')}) has passed. Suggest other programs, or tell the user to call and ask anyway."
+        out["message"] = (f"Too late for this trip: the last time to call was {by}. "
+                          "Say so kindly and suggest the next option.")
     elif last == today:
         out["result"] = "call_today"
-        out["message"] = "Today is the last day to call. Call during office hours today."
+        out["message"] = f"Today is the last day to call{f', by {_fmt(cutoff)}' if cutoff else ''}."
     else:
         out["result"] = "ok"
-        out["message"] = f"Call by {last.strftime('%A, %B %d')}."
-    if not prog.get("verified", False):
-        out["note"] = "Notice rule is from web sources and is not yet confirmed. Tell the user to call early."
+        out["message"] = f"Call by {by}."
     return out

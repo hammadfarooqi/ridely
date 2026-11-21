@@ -15,7 +15,7 @@ The prototype runs on Telegram. A later pilot can move to SMS (for example, Twil
 | Language | Python 3.12 (FastAPI app in `api/index.py` on Vercel's Python runtime). Local tool: `uv`. |
 | Agent framework | **PydanticAI** (`pydantic-ai-slim[openai]`). Reasons: tool inputs checked by Pydantic with automatic retries, `TestModel` for free tests, JSON history adapter, `RunContext` for tool dependencies, `UsageLimits` to stop endless tool loops, small (46 MB, no AWS packages). We compared it with Strands and with writing our own loop. |
 | LLM provider | Use our credits: Prime Intellect inference and Sail. Both give an OpenAI-compatible chat API, so the first adapter uses that format (`openai` Python client with a custom `base_url`). We can add an Anthropic adapter later. **Open:** choose the model (see §4c). |
-| Rules data | Team edits `data/programs.md` in git. A script converts it to `data/programs.yaml`. |
+| Rules data | The team's Google Sheet ("Rules" tab), exported as `data/programs.csv`. The code reads the CSV directly (2026-11-21). |
 | Conversation store | Postgres on Neon. The prototype keeps all data (no automatic delete). We add a delete rule before any pilot with real residents. |
 
 ## 0b. Status (night of 2026-11-13)
@@ -64,10 +64,10 @@ ridely/model.py      OpenAI-compatible model setup from env vars
 ridely/tools/*.py    6 tools (plain functions with typed inputs)
 ridely/store.py      Neon read/write (psycopg, plain SQL)
 ridely/telegram.py   sendMessage / sendChatAction with httpx
-data/programs.yaml
+data/programs.csv    rules sheet (one row per program)
 tests/               unit tests + scenario tests with TestModel / FunctionModel
 ```
-| Programs data | `data/programs.yaml` — made from the master rules document. Each entry has a `last_verified` date. |
+| Programs data | `data/programs.csv` — the team's rules sheet. Each row has a `source` column. |
 
 ## 2. System prompt (stable, so we can cache it)
 
@@ -81,7 +81,7 @@ Put today's date and day of week in a message **after** the stable prompt. If we
 
 | Tool | Input | Output | How |
 |---|---|---|---|
-| `get_program_details` | `program_id` | Full fact sheet + `last_verified` date | Read from `programs.yaml` |
+| `get_program_details` | `program_id` | Cost, phone, hours, sign-up, notice, reply note, source | Read from `programs.csv` |
 | `check_eligibility` | age, disability, Medicaid, home town | Programs that can fit, and why | Deterministic rules in code. The model does not decide eligibility alone. |
 | `geocode_address` | address or town | Lat/lon, town (county subdivision), county | U.S. Census Geocoder, `geographies/onelineaddress`. No API key needed. |
 | `check_service_area` | `program_id`, start, end | in / out / unsure, with reason | Compare town and county against the program's area list |
@@ -94,9 +94,8 @@ Note: the Census geocoder works on street addresses only. It cannot find "RWJ Ha
 
 ### 4a. Master rules document (team)
 
-- Starting draft: [data/programs.md](data/programs.md). It covers Crosstown, RideProvide, Mercer TRADE, Access Link, Medicaid NEMT, and Princeton Muni Transit. Many values are marked **VERIFY**, because the sources do not agree.
-- Team task: call each program, or read its current website. Fill in each VERIFY field. Write the date and the source for each field.
-- Then convert the document to `data/programs.yaml` (one schema for all programs: `id, name, operator, eligibility, service_area, cost, booking {phone, hours, min_notice, max_advance}, trip_purposes, how_to_register, what_to_say, last_verified, sources`).
+- Done (Nov 2026): Cyron's rules sheet, from calls to the programs, is `data/programs.csv`. The code reads it directly. The Princeton free bus is not in the sheet.
+- To change a rule: edit the Google Sheet, export the Rules tab to `data/programs.csv`, run the tests, push.
 - Each team member owns 2 programs.
 
 ### 4b. Telegram bot
@@ -139,7 +138,7 @@ Estimated use: a conversation is about 5 turns × ~4k input tokens, so ~20k toke
 | M1 | Echo bot | Telegram → Vercel → reply works |
 | M2 | Agent loop, no tools | Ridely chats from the system prompt only |
 | M3 | Tools | All 6 tools work and have unit tests |
-| M4 | Verified data | Team finishes the VERIFY fields; `programs.yaml` is complete |
+| M4 | Verified data | Rules sheet from calls to each program (`data/programs.csv`) |
 | M5 | Test set | (a) Free tests with `TestModel`/`FunctionModel` for tool wiring and history. (b) 20–30 scripted scenarios (English and Spanish, edge cases) run on the real model, with the expected program. We run them before each change and use them to choose the model. |
 | M6 | Demo | Live demo + a short report on accuracy over the test set |
 | M7 (later) | Pilot | Show to Center for Modern Aging and Human Services staff; plan the SMS number |
