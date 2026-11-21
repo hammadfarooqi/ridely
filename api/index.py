@@ -59,6 +59,26 @@ async def telegram_webhook(
     return {"ok": True, "status": status}
 
 
+@app.post("/api/set-webhook")
+async def set_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+) -> dict:
+    """Point Telegram at this deployment. Same secret header as the webhook.
+    Useful when the local network blocks api.telegram.org."""
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if not secret or not hmac.compare_digest(x_telegram_bot_api_secret_token or "", secret):
+        raise HTTPException(status_code=401, detail="bad secret")
+    tg = TelegramClient()
+    url = f"https://{request.url.hostname}/api/telegram"
+    res = await tg.call("setWebhook", url=url, secret_token=secret,
+                        allowed_updates=["message", "edited_message"], drop_pending_updates=True)
+    info = await tg.call("getWebhookInfo")
+    r = info.get("result", {})
+    return {"set": res.get("ok"), "url": r.get("url"), "pending": r.get("pending_update_count"),
+            "last_error": r.get("last_error_message")}
+
+
 class _NotConfiguredModel:
     """Placeholder that makes the agent turn fail, so the user gets the fallback message."""
 
