@@ -70,15 +70,25 @@ class PostgresStore:
 
     def __init__(self, url: str) -> None:
         self.url = url
+        self._schema_ready = False
 
     async def _conn(self):
         import psycopg
 
-        return await psycopg.AsyncConnection.connect(self.url, autocommit=True, prepare_threshold=None)
+        conn = await psycopg.AsyncConnection.connect(self.url, autocommit=True, prepare_threshold=None)
+        if not self._schema_ready:  # once per process: create tables if missing (safe to repeat)
+            await conn.execute(SCHEMA)
+            self._schema_ready = True
+        return conn
 
     async def init_schema(self) -> None:
         async with await self._conn() as c:
             await c.execute(SCHEMA)
+
+    async def ping(self) -> bool:
+        async with await self._conn() as c:
+            await c.execute("SELECT 1")
+        return True
 
     async def first_time_seen(self, update_id: int) -> bool:
         async with await self._conn() as c:

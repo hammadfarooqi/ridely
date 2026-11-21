@@ -25,8 +25,16 @@ app = FastAPI(title="Ridely")
 
 @app.get("/api/health")
 async def health() -> dict:
+    db_ok = None
+    store = get_store()
+    if hasattr(store, "ping"):
+        try:
+            db_ok = await store.ping()  # also creates the tables on first use
+        except Exception as e:
+            db_ok = f"error: {type(e).__name__}"
     return {
         "ok": True,
+        "db_ok": db_ok,
         "model": os.environ.get("LLM_MODEL"),
         "has_db": bool(os.environ.get("DATABASE_URL")),
         "has_bot_token": bool(os.environ.get("TELEGRAM_BOT_TOKEN")),
